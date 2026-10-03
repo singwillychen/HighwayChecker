@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>高速公路塞不塞</title>
+<style>
+/* Layout: 單欄手機優先；頂部為國道綠底告示牌，下方查詢表單、路線結果卡、沿線全部公路列表 */
+:root{
+  --bg:#eef2ee;--surface:#ffffff;--surface2:#f4f7f4;--fg:#15221a;--dim:#5b6b60;--line:#d3ddd5;
+  --sign:#0a6b3c;--sign-fg:#ffffff;--accent:#0a6b3c;--accent-fg:#ffffff;
+  --ok:#14804a;--ok-bg:#dcf3e5;--mid:#9a6a00;--mid-bg:#fff0c6;--bad:#c7293a;--bad-bg:#fde0e3;
+  --cam:#18201b;
+  --sans:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei","Segoe UI",sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0c130f;--surface:#141d17;--surface2:#1a251e;--fg:#e4eee7;--dim:#93a79a;--line:#2a3a30;
+  --sign:#0d7a45;--accent:#35c27a;--accent-fg:#04140b;
+  --ok:#47d58b;--ok-bg:#12351f;--mid:#f0bf3c;--mid-bg:#3a3010;--bad:#ff7280;--bad-bg:#431a20;
+  --cam:#0a0f0c;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0c130f;--surface:#141d17;--surface2:#1a251e;--fg:#e4eee7;--dim:#93a79a;--line:#2a3a30;
+  --sign:#0d7a45;--accent:#35c27a;--accent-fg:#04140b;
+  --ok:#47d58b;--ok-bg:#12351f;--mid:#f0bf3c;--mid-bg:#3a3010;--bad:#ff7280;--bad-bg:#431a20;
+  --cam:#0a0f0c;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:15px;line-height:1.55;margin:0}
+.wrap{max-width:760px;margin-inline:auto;padding-inline:16px;padding-block:16px 40px;display:flex;flex-direction:column;gap:16px}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* 告示牌標題 */
+.sign{background:var(--sign);color:var(--sign-fg);border-radius:10px;padding:14px 18px;display:flex;align-items:center;gap:14px;
+  border:3px solid #fff;outline:2px solid var(--sign);box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.shield{flex:none;width:46px;height:46px;border-radius:8px;background:#fff;color:var(--sign);display:grid;place-items:center;
+  font-weight:800;font-size:12px;line-height:1.05;text-align:center;font-family:var(--sans)}
+.shield b{display:block;font-size:20px;font-family:var(--mono)}
+h1{margin:0;font-size:clamp(20px,5.6vw,30px);letter-spacing:.06em;line-height:1.2;text-wrap:balance}
+.sign p{margin:2px 0 0;font-size:12px;letter-spacing:.08em;opacity:.9}
+.notice{margin:0;font-size:12.5px;color:var(--dim);background:var(--surface2);border:1px dashed var(--line);border-radius:8px;padding:8px 12px}
+
+/* 表單 */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px}
+form{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:12px;align-items:end}
+label{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--dim);min-width:0}
+select,button{font:inherit;color:inherit}
+select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface2);color:var(--fg);font-size:16px}
+select:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.swap{width:42px;height:42px;border-radius:50%;border:1px solid var(--line);background:var(--surface2);cursor:pointer;font-size:18px;line-height:1}
+.swap:hover{border-color:var(--accent)}
+.row2{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:end}
+.go{padding:11px 22px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-fg);font-weight:700;font-size:16px;letter-spacing:.2em;cursor:pointer}
+.go:hover{filter:brightness(1.08)}.go:active{transform:scale(.97)}
+@media (max-width:520px){
+  form{grid-template-columns:minmax(0,1fr)}
+  .swap{justify-self:center;transform:rotate(90deg)}
+  .row2{grid-template-columns:minmax(0,1fr)}
+  .go{width:100%}
+}
+
+/* 摘要 */
+.sum{display:flex;flex-direction:column;gap:10px;border-left:6px solid var(--lv,var(--ok))}
+.sum h2{margin:0;font-size:clamp(20px,5.4vw,26px)}
+.sum .meta{display:flex;flex-wrap:wrap;gap:6px 18px;color:var(--dim);font-size:13px}
+.sum .big{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}
+.big .t{font-size:clamp(28px,8vw,40px);font-weight:700;font-family:var(--mono)}
+.pill{display:inline-block;padding:2px 10px;border-radius:99px;font-size:12.5px;font-weight:700;white-space:nowrap}
+.pill.ok{background:var(--ok-bg);color:var(--ok)}.pill.mid{background:var(--mid-bg);color:var(--mid)}.pill.bad{background:var(--bad-bg);color:var(--bad)}
+h3{margin:4px 0 0;font-size:15px;letter-spacing:.08em;display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+h3 small{font-weight:400;color:var(--dim);letter-spacing:0;font-size:12px}
+
+/* 路線卡 */
+.routes{display:flex;flex-direction:column;gap:12px}
+details.route{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+details.route[open]{border-color:var(--accent)}
+details.route>summary{list-style:none;cursor:pointer;padding:14px 16px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:center}
+details.route>summary::-webkit-details-marker{display:none}
+.rank{width:30px;height:30px;border-radius:50%;background:var(--surface2);border:1px solid var(--line);display:grid;place-items:center;font-weight:700;font-size:13px}
+.route:first-of-type .rank{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.rname{font-weight:700;min-width:0}
+.rsub{grid-column:2/4;font-size:12.5px;color:var(--dim)}
+.rtime{grid-row:1;grid-column:3;text-align:right;font-weight:700;font-family:var(--mono);white-space:nowrap}
+.rpill{grid-row:3;grid-column:2;justify-self:start}
+.hops{padding:2px 16px 16px;display:flex;flex-direction:column}
+.hop{display:grid;grid-template-columns:14px minmax(0,1fr);gap:0 12px}
+.rail{display:flex;flex-direction:column;align-items:center}
+.rail i{width:12px;height:12px;border-radius:50%;background:var(--lv);flex:none;margin-top:5px}
+.rail u{flex:1;width:4px;background:var(--lv);opacity:.55;border-radius:2px;margin-block:2px}
+.hop:last-child .rail u{display:none}
+.hbody{padding-bottom:16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.hrow{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+.seg{font-weight:600}
+.badge{font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:5px;color:#fff;background:var(--sign);white-space:nowrap;letter-spacing:.04em}
+.badge.t{background:#1d5fa8}
+.stats{display:flex;flex-wrap:wrap;gap:2px 14px;font-size:12.5px;color:var(--dim)}
+.stats b{color:var(--fg);font-weight:600}
+.desc{margin:0;font-size:12.5px;color:var(--dim)}
+
+/* 示範攝影機 */
+.cam{position:relative;height:50px;border-radius:7px;background:var(--cam);overflow:hidden;display:flex;flex-direction:column;justify-content:center;gap:5px;padding-top:8px}
+.cam .lane{height:15px;position:relative;overflow:hidden;border-top:1px dashed rgba(255,255,255,.18)}
+.cam .lane:first-of-type{border-top:0}
+.cam .tr{position:absolute;left:0;top:0;height:100%;display:flex;align-items:center;white-space:nowrap;will-change:transform;animation:flow var(--d,12s) linear infinite}
+.cam .tr s{display:block;height:11px;border-radius:3px;flex:none;text-decoration:none}
+.cam .tag{position:absolute;left:6px;top:2px;font:9px/1 var(--mono);color:rgba(255,255,255,.75);letter-spacing:.06em}
+.cam .tag.r{left:auto;right:6px}
+@keyframes flow{to{transform:translateX(-50%)}}
+
+/* 沿線公路 */
+.hw{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 16px;display:flex;flex-direction:column;gap:8px}
+.hw h4{margin:0;font-size:14px;display:flex;gap:8px;align-items:center}
+.srow{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center;font-size:13.5px;padding-block:5px;border-top:1px solid var(--line)}
+.srow:first-of-type{border-top:0}
+.srow span:first-child{min-width:0}
+.srow .sp{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--dim);min-width:3.6em;text-align:right}
+.foot{font-size:12px;color:var(--dim);line-height:1.7}
+.foot code{font-family:var(--mono);background:var(--surface2);padding:0 5px;border-radius:4px}
+@media (prefers-reduced-motion:reduce){.cam .tr{animation-duration:200s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="sign">
+    <div class="shield" aria-hidden="true">國道<b>1</b></div>
+    <div>
+      <h1>高速公路塞不塞</h1>
+      <p>輸入起訖點，看兩地之間每條公路現在的路況</p>
+    </div>
+  </header>
+  <p class="notice">目前為示範資料：依查詢當下的時間與情境估算，不是即時路況。換成真實資料的方式寫在頁面最下方。</p>
+
+  <section class="card" aria-label="查詢">
+    <form id="f">
+      <label>出發點<select id="from"></select></label>
+      <button class="swap" id="swap" type="button" aria-label="對調起訖點" title="對調起訖點">⇄</button>
+      <label>終點<select id="to"></select></label>
+      <div class="row2">
+        <label>路況情境<select id="scn">
+          <option value="now">現在時間</option>
+          <option value="am">平日早上 8:00 尖峰</option>
+          <option value="pm">平日傍晚 18:00 尖峰</option>
+          <option value="hol">連假最後一天 17:00</option>
+          <option value="night">深夜 2:00</option>
+        </select></label>
+        <button class="go" type="submit">查詢</button>
+      </div>
+    </form>
+  </section>
+
+  <div id="out" aria-live="polite"></div>
+
+  <p class="foot" id="foot"></p>
+</div>
+
+<script>
+(()=>{
+'use strict';
+const $=s=>document.querySelector(s);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const pad=n=>String(n).padStart(2,'0');
+
+/* ===== 路網（示範）：[公路, 南端, 北端, 公里, 自由流時速, 壅塞偏差] ===== */
+const CITIES=['基隆','宜蘭','台北','新北','桃園','新竹','苗栗','台中','彰化','雲林','嘉義','台南','高雄','屏東'];
+const RAW=[
+ ['國道1號','台北','基隆',25,80,.08],['國道1號','桃園','台北',40,95,.12],['國道1號','新竹','桃園',45,100,.04],
+ ['國道1號','苗栗','新竹',45,100,.03],['國道1號','台中','苗栗',60,100,.10],['國道1號','彰化','台中',30,100,.10],
+ ['國道1號','雲林','彰化',45,100,.05],['國道1號','嘉義','雲林',30,100,0],['國道1號','台南','嘉義',55,100,0],['國道1號','高雄','台南',45,100,.03],
+ ['國道3號','新北','基隆',18,90,0],['國道3號','新北','台北',15,90,.08],['國道3號','桃園','新北',35,100,.02],
+ ['國道3號','新竹','桃園',45,100,-.02],['國道3號','苗栗','新竹',45,100,-.03],['國道3號','台中','苗栗',60,100,0],
+ ['國道3號','彰化','台中',25,100,.03],['國道3號','雲林','彰化',50,100,-.03],['國道3號','嘉義','雲林',35,100,-.05],
+ ['國道3號','台南','嘉義',50,100,-.05],['國道3號','高雄','台南',55,100,0],['國道3號','高雄','屏東',30,90,-.05],
+ ['國道5號','宜蘭','台北',55,90,.12],
+ ['台61線','新竹','桃園',40,80,-.10],['台61線','苗栗','新竹',50,80,-.12],['台61線','台中','苗栗',60,85,-.12],
+ ['台61線','彰化','台中',35,80,-.08],['台61線','雲林','彰化',45,85,-.10],['台61線','嘉義','雲林',40,85,-.10],['台61線','台南','嘉義',60,85,-.08],
+ ['台74線','彰化','台中',40,80,0],
+ ['台88線','高雄','屏東',25,80,0]
+];
+const EDGES=RAW.map(([hw,s,n,km,free,bias])=>({id:hw+s+n,hw,s,n,km,free,bias}));
+const ADJ={};CITIES.forEach(c=>ADJ[c]=[]);
+EDGES.forEach(e=>{(ADJ[e.s]).push(e);(ADJ[e.n]).push(e)});
+const other=(e,c)=>e.s===c?e.n:e.s;
+const hwName=h=>h.replace('國道','國').replace('號','').replace('線','線');
+
+/* ===== 示範路況模型 ===== */
+function hashSeed(str){let h=2166136261;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const g=(h,mu,sd)=>Math.exp(-((h-mu)**2)/(2*sd*sd));
+function scenario(key){
+  const d=new Date();
+  if(key==='am')return{h:8,dow:2,label:'平日早上 8:00 尖峰',d};
+  if(key==='pm')return{h:18,dow:2,label:'平日傍晚 18:00 尖峰',d};
+  if(key==='hol')return{h:17,dow:0,label:'連假最後一天 17:00',d,hol:true};
+  if(key==='night')return{h:2,dow:2,label:'深夜 2:00',d};
+  return{h:d.getHours()+d.getMinutes()/60,dow:d.getDay(),label:'現在時間',d};
+}
+function snapshot(e,north,sc){
+  const h=sc.h,wk=sc.dow>=1&&sc.dow<=5&&!sc.hol;
+  let load=.08;
+  if(wk){
+    const am=g(h,8,1.1)*(north?.62:.42),pm=g(h,18,1.4)*(north?.72:.85);
+    load+=am+pm+g(h,12.5,2)*.12;
+    if(['台北','新北','桃園'].includes(e.n)||['台北','新北'].includes(e.s))load+=.08*(g(h,8,1.5)+g(h,18,1.6));
+  }else if(sc.dow===6){
+    load+=g(h,10,2)*(north?.15:.38)+g(h,15,2)*.1;
+  }else{
+    load+=g(h,17,2.6)*(north?(sc.hol?1.0:.5):.2)+g(h,9,1.8)*(north?.05:.2);
+  }
+  if(e.hw==='國道5號'){const toTpe=north;if(!wk&&((sc.dow===6&&!toTpe)||(sc.dow!==6&&toTpe)))load+=.28}
+  load+=e.bias;
+  const k=sc.d;const bucket=`${k.getFullYear()}${k.getMonth()}${k.getDate()}${Math.floor(sc.h*4)}`;
+  load+=(rng(hashSeed(e.id+north+bucket))()-.5)*.16;
+  load=clamp(load,0,1);
+  const speed=Math.max(15,Math.round(e.free*(1-.72*Math.pow(load,1.4))));
+  const ratio=speed/e.free;
+  const lv=ratio>.75?'ok':ratio>.45?'mid':'bad';
+  return{speed,ratio,lv,load,flow:Math.round(60+load*190+(rng(hashSeed(e.id+bucket))()*20)),min:e.km/speed*60,free:e.km/e.free*60};
+}
+/* 資料層：之後換成 TDX 的即時路況時，只要改這個函式（回傳每段的 speed 即可） */
+async function fetchSnapshots(edges,north,sc){
+  return edges.map(e=>({e,n:north(e),...snapshot(e,north(e),sc)}));
+}
+const LV={ok:'順暢',mid:'車多',bad:'壅塞'};
+const DESC={ok:'車流順暢，車輛間距充足。',mid:'車流增加，內側車道車速略降。',bad:'車多緩行，部分路段走走停停。'};
+
+/* ===== 路線搜尋 ===== */
+function cityPaths(a,b){
+  const res=[];
+  (function dfs(c,path,km,seen){
+    if(path.length>8)return;
+    if(c===b){res.push({path:[...path],km});return}
+    for(const e of ADJ[c]){const nx=other(e,c);if(seen.has(nx))continue;seen.add(nx);path.push(nx);dfs(nx,path,km+e.km,seen);path.pop();seen.delete(nx)}
+  })(a,[a],0,new Set([a]));
+  return res;
+}
+function hopEdges(a,b){return ADJ[a].filter(e=>other(e,a)===b)}
+const goingNorth=(e,from)=>e.s===from;
+function fmtMin(m){m=Math.round(m);const h=Math.floor(m/60);return h?`${h} 小時 ${m%60} 分`:`${m} 分`}
+
+async function plan(a,b,sc){
+  const all=cityPaths(a,b);
+  const minKm=Math.min(...all.map(p=>p.km));
+  const cand=all.filter(p=>p.km<=minKm*1.6+30);
+  const need=new Map();
+  cand.forEach(p=>{for(let i=0;i<p.path.length-1;i++)hopEdges(p.path[i],p.path[i+1]).forEach(e=>need.set(e.id,e))});
+  // 每條邊依「行駛方向」取得一份快照（行進方向以路徑為準）
+  const snap=new Map();
+  for(const e of need.values()){
+    for(const north of [true,false]){
+      const [s]=await fetchSnapshots([e],()=>north,sc);snap.set(e.id+north,s);
+    }
+  }
+  const hopSnap=(from,to,e)=>snap.get(e.id+(e.s===from));
+  const routes=new Map();
+  const add=(cities,edges)=>{
+    const sig=edges.map(e=>e.id).join('|');if(routes.has(sig))return;
+    const hops=edges.map((e,i)=>({...hopSnap(cities[i],cities[i+1],e),from:cities[i],to:cities[i+1]}));
+    const min=hops.reduce((s,h)=>s+h.min,0),free=hops.reduce((s,h)=>s+h.free,0),km=hops.reduce((s,h)=>s+h.e.km,0);
+    const ratio=free/min;
+    routes.set(sig,{cities,hops,min,free,km,ratio,lv:ratio>.75?'ok':ratio>.45?'mid':'bad'});
+  };
+  cand.forEach(p=>{
+    const c=p.path,hs=[];
+    for(let i=0;i<c.length-1;i++)hs.push(hopEdges(c[i],c[i+1]));
+    add(c,hs.map((opts,i)=>opts.reduce((best,e)=>hopSnap(c[i],c[i+1],e).min<hopSnap(c[i],c[i+1],best).min?e:best)));
+    const hws=[...new Set(hs.flat().map(e=>e.hw))];
+    hws.forEach(hw=>{if(hs.every(o=>o.some(e=>e.hw===hw)))add(c,hs.map(o=>o.find(e=>e.hw===hw)))});
+  });
+  const list=[...routes.values()].sort((x,y)=>x.min-y.min).slice(0,4);
+  // 沿線全部公路（所有候選路徑上出現過的路段，依公路分組）
+  const byHw={};
+  need.forEach(e=>{(byHw[e.hw]=byHw[e.hw]||[]).push(e)});
+  return{list,byHw,snap,minKm};
+}
+
+/* ===== 畫面 ===== */
+const fromEl=$('#from'),toEl=$('#to'),scnEl=$('#scn'),out=$('#out');
+CITIES.forEach(c=>{fromEl.add(new Option(c,c));toEl.add(new Option(c,c))});
+function store(k,v){try{if(v===undefined)return localStorage.getItem(k);localStorage.setItem(k,v)}catch(e){return null}}
+fromEl.value=store('jam.from')||'台北';toEl.value=store('jam.to')||'台中';scnEl.value=store('jam.scn')||'now';
+if(fromEl.value===toEl.value)toEl.value=fromEl.value==='高雄'?'台北':'高雄';
+
+const badge=hw=>`<span class="badge${hw.startsWith('國道')?'':' t'}">${hw}</span>`;
+function routeName(r){
+  const hws=[];r.hops.forEach(h=>{if(hws[hws.length-1]!==h.e.hw)hws.push(h.e.hw)});
+  return hws.length===1?`全程 ${hws[0]}`:hws.map(hwName).join(' → ')+' 混走';
+}
+function dirLabel(h){
+  const e=h.e,n=h.n;
+  if(e.hw==='國道5號')return n?'往台北':'往宜蘭';
+  return n?'北上':'南下';
+}
+function camHTML(h){
+  const r=rng(hashSeed(h.e.id+h.n));
+  const cfg={ok:[44,56],mid:[18,26],bad:[5,9]}[h.lv],cols=['#c9d3cc','#8fa3b8','#d6b27a','#b9c4cf','#a4b8a2','#cf8a8a'];
+  const lane=()=>{
+    let html='',len=0;
+    while(len<760){const w=Math.round(15+r()*9),gap=Math.round(cfg[0]+r()*(cfg[1]-cfg[0]));
+      html+=`<s style="width:${w}px;margin-right:${gap}px;background:${cols[(r()*cols.length)|0]}"></s>`;len+=w+gap}
+    return`<div class="tr" style="--d:${Math.round(clamp(520/h.speed,5,34))}s">${html}${html}</div>`;
+  };
+  const t=new Date();
+  return`<span class="tag">CAM 示範 · ${h.e.hw}${dirLabel(h)}</span><span class="tag r">${LV[h.lv]}</span><div class="lane">${lane()}</div><div class="lane">${lane()}</div>`;
+}
+function mountCams(root){root.querySelectorAll('.cam:empty').forEach(c=>{const [id,n]=c.dataset.k.split('|');const h=window.__hops[c.dataset.k];c.innerHTML=camHTML(h)})}
+window.__hops={};
+
+function hopHTML(h,ri,i){
+  const key=`${ri}-${i}|${h.n}`;window.__hops[key]=h;
+  return`<div class="hop" style="--lv:var(--${h.lv})">
+    <div class="rail"><i></i><u></u></div>
+    <div class="hbody">
+      <div class="hrow"><span class="seg">${h.from} → ${h.to}</span>${badge(h.e.hw)}<span class="pill ${h.lv}">${LV[h.lv]}</span></div>
+      <div class="stats"><span>${dirLabel(h)}</span><span>時速 <b class="mono">${h.speed}</b> km/h</span><span><b class="mono">${h.e.km}</b> 公里</span><span>約 <b class="mono">${Math.round(h.min)}</b> 分</span><span>車流 <b class="mono">${h.flow}</b> 輛/5分</span></div>
+      <div class="cam" data-k="${key}" role="img" aria-label="示範攝影機：${h.e.hw}${h.from}到${h.to}${LV[h.lv]}"></div>
+      <p class="desc">${DESC[h.lv]}（示範畫面，非即時影像）</p>
+    </div></div>`;
+}
+function routeHTML(r,i){
+  const delay=Math.round(r.min-r.free);
+  return`<details class="route"${i===0?' open':''} data-ri="${i}">
+    <summary><span class="rank">${i+1}</span><span class="rname">${routeName(r)}</span><span class="rtime">${fmtMin(r.min)}</span>
+      <span class="rsub">${r.cities.join(' → ')}・${r.km} 公里・比順暢多 ${delay} 分</span><span class="rpill pill ${r.lv}">${LV[r.lv]}</span></summary>
+    <div class="hops">${r.hops.map((h,j)=>hopHTML(h,i,j)).join('')}</div></details>`;
+}
+function hwHTML(res,a,b,sc){
+  const groups=Object.entries(res.byHw).map(([hw,edges])=>`
+    <div class="hw"><h4>${badge(hw)}<span>${edges.length} 個路段</span></h4>
+    ${edges.map(e=>{
+      const s=res.snap.get(e.id+true),t=res.snap.get(e.id+false);
+      const cell=(x,l)=>`<span class="sp">${l}${x.speed}</span>`;
+      const w=s.ratio<t.ratio?s:t;
+      return`<div class="srow"><span>${e.s} ⇄ ${e.n}　<span class="mono" style="color:var(--dim)">${e.km}km</span></span><span class="sp">北 ${s.speed}・南 ${t.speed}</span><span class="pill ${w.lv}">${LV[w.lv]}</span></div>`}).join('')}
+    </div>`).join('');
+  return groups;
+}
+async function run(){
+  const a=fromEl.value,b=toEl.value;
+  if(a===b){out.innerHTML='<div class="card">出發點與終點相同，請選不同的地點。</div>';return}
+  store('jam.from',a);store('jam.to',b);store('jam.scn',scnEl.value);
+  const sc=scenario(scnEl.value),res=await plan(a,b,sc);
+  window.__hops={};
+  if(!res.list.length){out.innerHTML='<div class="card">找不到兩地之間的國道或快速道路。</div>';return}
+  const best=res.list[0],d=sc.d;
+  const stamp=`${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  out.innerHTML=`
+   <section class="card sum" style="--lv:var(--${best.lv})">
+     <h2>${a} → ${b}</h2>
+     <div class="big"><span class="t">${fmtMin(best.min)}</span><span class="pill ${best.lv}">${LV[best.lv]}</span></div>
+     <div>建議走 <b>${routeName(best)}</b>，約 ${best.km} 公里，順暢時需 ${fmtMin(best.free)}。</div>
+     <div class="meta"><span>情境：${sc.label}</span><span>查詢時間 ${stamp}</span><span>示範資料</span></div>
+   </section>
+   <h3>可走路線 <small>依預估時間排序</small></h3>
+   <div class="routes">${res.list.map(routeHTML).join('')}</div>
+   <h3 style="margin-top:10px">沿線全部公路 <small>北上與南下時速</small></h3>
+   <div class="routes">${hwHTML(res,a,b,sc)}</div>`;
+  out.querySelectorAll('details.route').forEach(dt=>{
+    if(dt.open)mountCams(dt);
+    dt.addEventListener('toggle',()=>{if(dt.open)mountCams(dt)});
+  });
+}
+$('#f').addEventListener('submit',e=>{e.preventDefault();run()});
+$('#swap').addEventListener('click',()=>{const t=fromEl.value;fromEl.value=toEl.value;toEl.value=t;run()});
+[fromEl,toEl,scnEl].forEach(el=>el.addEventListener('change',run));
+
+$('#foot').innerHTML='資料說明：本頁的時速與壅塞等級由「查詢當下的時間＋情境＋路段特性」估算，攝影機畫面為 CSS 示意動畫。接上真實資料時，請改寫程式裡的 <code>fetchSnapshots()</code>，改由交通部 TDX 運輸資料流通服務（公路局、高公局的路段即時路況與 CCTV）取得各路段時速與影像網址，其餘畫面不用動。注意：直接從瀏覽器呼叫 TDX 需要金鑰，建議透過自己的後端或代理轉發。';
+run();
+})();
+</script>
+
+</body>
+</html>
