@@ -14,7 +14,7 @@
     audioQuality: 'high',   // low | mid | high
     master: 0.8, music: 0.5, sfx: 0.8,
     speed: 'normal',        // slow | normal | fast
-    autoNext: false,        // 每手結束後 3 秒自動下一手
+    autoNext: false,        // 每手結束後 3 秒自動下一局
     mods: { equity: false, odds: false, advice: false, chart: false, reader: false }, // 輔助模組
   };
 

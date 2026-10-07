@@ -218,7 +218,7 @@
     </div><div class="set-col">
       <h3>🃏 牌局</h3>
       <div class="row"><span class="label">遊戲速度</span>${seg('speed', [['slow', '慢'], ['normal', '標準'], ['fast', '快']])}</div>
-      <div class="row"><span class="label">每手結束</span>${seg('autoNext', [['false', '按「下一手」'], ['true', '3 秒自動']])}</div>
+      <div class="row"><span class="label">每局結束</span>${seg('autoNext', [['false', '按「下一局」'], ['true', '3 秒自動']])}</div>
       <h3>🧩 輔助模組 <small class="muted">（點選開／關，常駐記憶）</small></h3>
       ${modsHTML()}
     </div>`;
@@ -627,14 +627,14 @@
     $$('#game .banner').forEach((b) => b.remove());
   }
 
-  // 每手結束：畫面停住，詢問「下一手」；可切換成 3 秒後自動繼續
+  // 每局（一手牌）分出勝負後：畫面停住，詢問「下一局」；可切換成 3 秒後自動繼續
   function nextHandPrompt(G) {
     return new Promise((res) => {
       $$('.next-box').forEach((b) => b.remove());
       const box = document.createElement('div');
       box.className = 'next-box';
-      box.innerHTML = `<button class="btn pink" data-n>下一手 ▶ <span class="k">空白鍵</span></button>
-        <label class="auto-tg"><input type="checkbox" ${settings.autoNext ? 'checked' : ''}><span class="sw"></span>3 秒後自動下一手</label>
+      box.innerHTML = `<button class="btn pink" data-n>下一局 ▶ <span class="k">空白鍵</span></button>
+        <label class="auto-tg"><input type="checkbox" ${settings.autoNext ? 'checked' : ''}><span class="sw"></span>3 秒後自動下一局</label>
         <div class="cd"><i></i></div>`;
       $('#game .table-wrap').appendChild(box);
       let timer = null, start = 0;
