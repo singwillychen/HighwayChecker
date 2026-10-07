@@ -28,7 +28,7 @@
         <button class="btn alt" data-go="settings">⚙️ 設定</button>
       </div>
       <div class="lineup"></div>
-      <div class="ver">v0.1 網頁版 · 鍵盤：F 棄牌 / C 過牌跟注 / R 加注 / A 全下 / Esc 選單</div>
+      <div class="ver"><b>鍵盤</b> <span class="kc">F</span> 棄牌 <span class="kc">C</span> 過牌／跟注 <span class="kc">R</span> 加注 <span class="kc">A</span> 全下 <span class="kc">空白</span> 下一手 <span class="kc">Esc</span> 選單 <i>v0.2</i></div>
     </section>
 
     <!-- 開新遊戲 -->
@@ -50,6 +50,10 @@
           <span class="label" style="padding-top:10px">整體難度</span>
           <div class="choices" id="ng-diff"></div>
         </div>
+        <div class="row" style="align-items:flex-start;margin-top:12px">
+          <span class="label" style="padding-top:8px">輔助模組</span>
+          <div id="ng-mods"></div>
+        </div>
         <div class="row" style="position:absolute;right:28px;bottom:24px">
           <button class="btn alt" data-go="title">返回</button>
           <button class="btn pink" id="ng-start">開始做夢 ▶</button>
@@ -64,7 +68,7 @@
         <h2><span id="slots-title">讀取紀錄</span> <span class="tag" id="slots-tag">LOAD</span></h2>
         <div class="slot-grid" id="slot-grid"></div>
         <div class="row" style="justify-content:flex-end;margin-top:12px">
-          <span class="muted" style="margin-right:auto">共 20 個紀錄格。存檔保存在本機瀏覽器中；遊戲中每打完一手會自動存檔。</span>
+          <span class="muted" style="margin-right:auto">共 20 個紀錄格，存在本機瀏覽器。牌局中隨時可在選單手動存檔，每個動作也會自動存檔；讀檔會從存檔的那一刻接續。</span>
           <button class="btn alt" id="slots-back">返回</button>
         </div>
       </div>
@@ -139,10 +143,24 @@
         <div class="pill" id="hud-hand"></div>
         <div class="grow"></div>
         <button class="btn small alt" id="hud-chat" title="說句話">💬</button>
+        <button class="btn small alt" id="hud-mods" title="輔助模組">🧩 模組</button>
         <button class="btn small alt" id="hud-log" title="牌局紀錄">📜 紀錄</button>
         <button class="btn small" id="hud-menu" title="選單 (Esc)">☰ 選單</button>
       </div>
       <div class="log" id="log"></div>
+      <ol class="hand-chart" id="hand-chart" style="display:none">
+        <li class="ttl">牌型大小（大 → 小）</li>
+        <li data-n="皇家同花順">皇家同花順 <em>A K Q J 10 同花</em></li>
+        <li data-n="同花順">同花順 <em>連續五張同花</em></li>
+        <li data-n="四條">四條 <em>四張同點</em></li>
+        <li data-n="葫蘆">葫蘆 <em>三條＋一對</em></li>
+        <li data-n="同花">同花 <em>五張同花色</em></li>
+        <li data-n="順子">順子 <em>五張連續</em></li>
+        <li data-n="三條">三條 <em>三張同點</em></li>
+        <li data-n="兩對">兩對 <em>兩組對子</em></li>
+        <li data-n="一對">一對 <em>一組對子</em></li>
+        <li data-n="高牌">高牌 <em>比最大單張</em></li>
+      </ol>
       <div class="actions" id="actions">
         <div class="raise-box">
           <div class="presets">
@@ -171,7 +189,7 @@
 <script src="js/levels.js"></script>
 <script src="js/dialogue.js"></script>
 <script src="js/avatar.js"></script>
-<script src="js/scenes.js"></script>
+<script src="js/backdrops.js"></script>
 <script src="js/chips.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/storage.js"></script>

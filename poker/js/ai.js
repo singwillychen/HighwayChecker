@@ -23,8 +23,8 @@
   };
 
   const DIFFICULTIES = [
-    { id: 'baby',   name: '小嫩嫩',   skill: 0.05, desc: '對手幾乎亂打，表情全寫在臉上；顯示勝率提示。' },
-    { id: 'rookie', name: '新手',     skill: 0.25, desc: '對手常犯錯、容易被看穿；顯示勝率提示。' },
+    { id: 'baby',   name: '小嫩嫩',   skill: 0.05, desc: '對手幾乎亂打，表情全寫在臉上。' },
+    { id: 'rookie', name: '新手',     skill: 0.25, desc: '對手常犯錯、容易被看穿。' },
     { id: 'normal', name: '普通玩家', skill: 0.50, desc: '對手懂基本賠率，偶爾詐唬。' },
     { id: 'pro',    name: '老手',     skill: 0.72, desc: '對手會讀你的習慣、懂位置、表情難以看穿。' },
     { id: 'god',    name: '賭神',     skill: 0.92, desc: '對手幾乎不犯錯，會反向演戲，請謹慎。' },

@@ -287,6 +287,22 @@
       this.log({ type: 'result', result: this.result });
     }
 
+    // 完整狀態（含牌堆、手牌、下注進度），讀檔可從同一個時間點接續
+    serialize() {
+      const keys = ['sb', 'bb', 'ante', 'dealer', 'handNo', 'phase', 'board', 'deck', 'street', 'currentBet', 'minRaise', 'toAct', 'lastAggressor', 'sbIdx', 'bbIdx', 'result'];
+      const o = { players: this.players.map((p) => ({ ...p, hole: p.hole.slice() })) };
+      for (const k of keys) o[k] = this[k];
+      return JSON.parse(JSON.stringify(o));
+    }
+
+    static restore(data, opts = {}) {
+      const t = new Table({ players: data.players.map((p) => ({ id: p.id, name: p.name, isHuman: p.isHuman, chips: p.chips, out: p.out })), sb: data.sb, bb: data.bb, ante: data.ante, log: opts.log, rng: opts.rng });
+      data = JSON.parse(JSON.stringify(data));
+      t.players.forEach((p, i) => Object.assign(p, data.players[i], { seat: i }));
+      for (const k in data) if (k !== 'players') t[k] = data[k];
+      return t;
+    }
+
     snapshot() {
       return {
         players: this.players.map((p) => ({ id: p.id, chips: p.chips, out: p.out })),

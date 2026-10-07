@@ -1,6 +1,6 @@
 /* 主控制器：畫面切換、遊戲流程、動畫、存讀檔 */
 (function () {
-  const { Cards, Engine, AI, Avatar, Scenes, Chips, Audio, Storage, Levels, Characters, Dialogue } = HP;
+  const { Cards, Engine, AI, Avatar, Backdrop, Chips, Audio, Storage, Levels, Characters, Dialogue } = HP;
   const { CHARS, EXTRAS } = Characters;
   const LEVELS = Levels.LEVELS;
 
@@ -27,6 +27,7 @@
     stage.classList.add('q-' + settings.quality);
     const sp = { slow: 1.4, normal: 1, fast: 0.5 }[settings.speed] || 1;
     stage.style.setProperty('--anim', sp);
+    Backdrop.setQuality(settings.quality);
     Audio.configure({ master: settings.master, music: settings.music, sfx: settings.sfx, quality: settings.audioQuality });
     applyScale();
   }
@@ -51,7 +52,7 @@
     const r = Cards.RANK_LABEL[c >> 2], s = Cards.SUIT_SYM[c & 3];
     return `<div class="card ${size} ${Cards.isRed(c) ? 'red' : ''} ${opts.cls || ''}" data-c="${c}" style="${opts.style || ''}"><span class="rk">${r}</span><span class="st">${s}</span><span class="big">${s}</span></div>`;
   }
-  function sceneInto(node, name, stageIdx) { node.innerHTML = Scenes.render(name, stageIdx); }
+  function sceneInto(node, name, stageIdx) { Backdrop.mount(node, name, stageIdx); }
 
   // ═════════════ 畫面切換 ═════════════
   function show(id) {
@@ -106,6 +107,7 @@
   function buildNewGame() {
     $('#ng-look').innerHTML = ['hero_a', 'hero_b', 'hero_c'].map((id) => `<button class="choice ${NG.look === id ? 'on' : ''}" data-look="${id}" aria-label="外觀"><div class="av">${avatarHTML(id, 'happy')}</div></button>`).join('');
     $('#ng-diff').innerHTML = AI.DIFFICULTIES.map((d, i) => `<button class="choice diff ${NG.diff === d.id ? 'on' : ''}" data-diff="${d.id}"><b>${d.name}</b><div class="pips">${'★'.repeat(i + 1)}${'☆'.repeat(4 - i)}</div><span>${d.desc}</span></button>`).join('');
+    $('#ng-mods').innerHTML = modsHTML();
     const slots = Storage.allSlots();
     const first = Storage.firstEmpty();
     $('#ng-slot').innerHTML = slots.map((s, i) => `<option value="${i}" ${i === first ? 'selected' : ''}>紀錄 ${i + 1}${s ? '（覆蓋：' + esc(s.name) + '）' : '（空）'}</option>`).join('');
@@ -137,9 +139,12 @@
       const L = LEVELS[s.levelIdx] || LEVELS[0];
       const d = AI.DIFFICULTIES.find((x) => x.id === s.diff) || AI.DIFFICULTIES[2];
       const stTitle = L.stages[s.stageIdx] && L.stages.length > 1 ? '・' + L.stages[s.stageIdx].title.split('：')[0].split('　')[0] : '';
+      const heroChips = s.state ? s.state.players[0].chips : s.snap ? s.snap.players[0].chips : null;
+      const where = s.mode === 'free' ? '🎲 自由模式・' + L.title.split('　')[1] : L.title.replace('　', ' ') + stTitle;
+      const when = s.state ? (s.state.phase === 'betting' || s.state.phase === 'street_done' ? `第 ${s.state.handNo} 手進行中` : `第 ${s.state.handNo} 手結束`) : '關卡開始前';
       return `<div class="slot" data-i="${i}" tabindex="0" role="button"><span class="no">${i + 1}</span><div class="face">${avatarHTML(s.look, 'neutral')}</div>
-        <div class="nm">${esc(s.name)}</div><div class="lv">${s.cleared ? '🏆 全破！' : L.title.replace('　', ' ') + stTitle}</div>
-        <div>難度：${d.name}</div><div>籌碼：${s.snap ? Chips.fmt(s.snap.players[0].chips) : '-'}</div>
+        <div class="nm">${esc(s.name)}</div><div class="lv">${s.cleared ? '🏆 全破！' : esc(where)}</div>
+        <div>難度：${d.name}・${when}</div><div>籌碼：${heroChips !== null ? Chips.fmt(heroChips) : '-'}</div>
         <div>勝場：${(s.stats && s.stats.handsWon) || 0}／${(s.stats && s.stats.hands) || 0} 手</div>
         <div class="muted">${new Date(s.savedAt).toLocaleString('zh-TW', { hour12: false })}・${fmtTime(s.playtime)}</div>
         <button class="del" data-del="${i}">刪除</button></div>`;
@@ -174,38 +179,51 @@
     if (slotsBack) { closeOver('slots'); slotsBack(); } else { buildTitle(); show('title'); }
   });
 
+  // 存下「此時此刻」：牌桌完整狀態（含牌堆、手牌、下注進度），讀檔從同一刻接續
   function saveRun(G) {
-    if (G.mode !== 'story') return;
+    if (G.slot === null || G.slot === undefined) return false;
     G.playtime += (Date.now() - G.tick) / 1000; G.tick = Date.now();
-    Storage.saveSlot(G.slot, {
+    return Storage.saveSlot(G.slot, {
+      mode: G.mode, free: G.free || null,
       name: G.name, look: G.look, diff: G.diff, levelIdx: G.levelIdx, stageIdx: G.stageIdx,
-      snap: G.snap || null, stats: G.stats, model: G.model, playtime: G.playtime, cleared: !!G.cleared,
+      state: G.inStage && G.table ? G.table.serialize() : null,
+      flags: { heroVoluntary: !!G.heroVoluntary, heroAggrRiver: !!G.heroAggrRiver, revealed: !!G.revealed },
+      stats: G.stats, model: G.model, playtime: G.playtime, cleared: !!G.cleared,
     });
   }
   function loadRun(i, d) {
-    const G = newRun({ mode: 'story', name: d.name, look: d.look, diff: d.diff, slot: i, levelIdx: d.levelIdx, stageIdx: d.stageIdx });
+    const G = newRun({ mode: d.mode || 'story', name: d.name, look: d.look, diff: d.diff, slot: i, levelIdx: d.levelIdx, stageIdx: d.stageIdx });
+    G.free = d.free || null;
     G.stats = d.stats || G.stats; G.model = d.model || G.model; G.playtime = d.playtime || 0; G.cleared = d.cleared;
     if (d.cleared) { storyScreen({ title: '終章', sub: '你已經從夢中醒來', lines: Levels.EPILOGUE, scene: 'space', next: () => { buildTitle(); show('title'); } }); return; }
-    if (d.snap) startStage(G, d.snap); else levelIntro(G);
+    if (d.state) startStage(G, { state: d.state, flags: d.flags });
+    else if (d.snap) startStage(G, { snap: d.snap });
+    else if (G.mode === 'free') startStage(G); else levelIntro(G);
   }
 
   // ═════════════ 設定 ═════════════
   function buildSettings(onBack) {
-    const seg = (key, opts) => `<div class="seg" data-key="${key}">${opts.map(([v, t]) => `<button data-v="${v}" class="${settings[key] === v ? 'on' : ''}">${t}</button>`).join('')}</div>`;
+    const seg = (key, opts) => `<div class="seg" data-key="${key}">${opts.map(([v, t]) => `<button data-v="${v}" class="${String(settings[key]) === v ? 'on' : ''}">${t}</button>`).join('')}</div>`;
     const range = (key) => `<input type="range" min="0" max="100" value="${Math.round(settings[key] * 100)}" data-range="${key}" aria-label="${key}"><span class="kbd">${Math.round(settings[key] * 100)}</span>`;
-    $('#settings-rows').innerHTML = `
-      <div class="row"><span class="label">畫質</span>${seg('quality', [['low', '低（省電）'], ['mid', '中'], ['high', '高（動畫＋背景角色）']])}</div>
+    $('#settings-rows').innerHTML = `<div class="set-col">
+      <h3>🖥️ 畫面</h3>
+      <div class="row"><span class="label">畫質</span>${seg('quality', [['low', '低（省電）'], ['mid', '中'], ['high', '高（全動畫）']])}</div>
       <div class="row"><span class="label">螢幕解析度</span><select data-sel="resolution">${['auto', '960x540', '1280x720', '1600x900', '1920x1080'].map((r) => `<option value="${r}" ${settings.resolution === r ? 'selected' : ''}>${r === 'auto' ? '自動符合視窗' : r.replace('x', ' × ')}</option>`).join('')}</select>
         <button class="btn small alt" id="fs-btn">${document.fullscreenElement ? '離開全螢幕' : '⛶ 全螢幕'}</button></div>
-      <div class="row"><span class="label">音質</span>${seg('audioQuality', [['low', '低 22kHz'], ['mid', '中 44.1kHz'], ['high', '高 48kHz＋混響']])}</div>
+      <h3>🔊 聲音</h3>
+      <div class="row"><span class="label">音質</span>${seg('audioQuality', [['low', '低 22k'], ['mid', '中 44.1k'], ['high', '高 48k＋混響']])}</div>
       <div class="row"><span class="label">主音量</span>${range('master')}</div>
       <div class="row"><span class="label">音樂</span>${range('music')}</div>
       <div class="row"><span class="label">音效</span>${range('sfx')}</div>
+    </div><div class="set-col">
+      <h3>🃏 牌局</h3>
       <div class="row"><span class="label">遊戲速度</span>${seg('speed', [['slow', '慢'], ['normal', '標準'], ['fast', '快']])}</div>
-      <div class="row"><span class="label">勝率提示</span>${seg('hints', [['auto', '依難度'], ['on', '永遠顯示'], ['off', '關閉']])}</div>
-      <div class="muted">「依難度」：小嫩嫩與新手會顯示勝率、底池賠率與建議。</div>`;
+      <div class="row"><span class="label">每手結束</span>${seg('autoNext', [['false', '按「下一手」'], ['true', '3 秒自動']])}</div>
+      <h3>🧩 輔助模組 <small class="muted">（點選開／關，常駐記憶）</small></h3>
+      ${modsHTML()}
+    </div>`;
     $('#settings-back').onclick = () => { Audio.sfx('click'); Storage.saveSettings(settings); onBack(); };
-    $('#settings-reset').onclick = () => { settings = { ...Storage.DEFAULT_SETTINGS }; applySettings(); buildSettings(onBack); };
+    $('#settings-reset').onclick = () => { settings = JSON.parse(JSON.stringify(Storage.DEFAULT_SETTINGS)); applySettings(); buildSettings(onBack); };
     $('#fs-btn').onclick = () => {
       if (document.fullscreenElement) document.exitFullscreen(); else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen();
       setTimeout(() => buildSettings(onBack), 300);
@@ -213,7 +231,8 @@
   }
   $('#settings-rows').addEventListener('click', (e) => {
     const b = e.target.closest('.seg button'); if (!b) return;
-    settings[b.parentNode.dataset.key] = b.dataset.v; Audio.sfx('click'); applySettings();
+    const key = b.parentNode.dataset.key;
+    settings[key] = key === 'autoNext' ? b.dataset.v === 'true' : b.dataset.v; Audio.sfx('click'); applySettings();
     $$('button', b.parentNode).forEach((x) => x.classList.toggle('on', x === b));
     Storage.saveSettings(settings);
   });
@@ -230,7 +249,8 @@
   const FREE = { levelIdx: 0, opps: [], all: false, diff: 'normal', chips: 1000, bb: 20, every: 10 };
   function rosterOf(levelIdx) { return [...new Set(LEVELS[levelIdx].stages.flatMap((s) => s.opponents))]; }
   function buildFree() {
-    $('#free-levels').innerHTML = LEVELS.map((L, i) => `<div class="lv-card ${i === FREE.levelIdx ? 'on' : ''}" data-lv="${i}" tabindex="0" role="button"><div class="thumb">${Scenes.render(L.scene)}</div><div class="t">${L.title.replace('　', ' ')}</div></div>`).join('');
+    $('#free-levels').innerHTML = LEVELS.map((L, i) => `<div class="lv-card ${i === FREE.levelIdx ? 'on' : ''}" data-lv="${i}" tabindex="0" role="button"><div class="thumb"></div><div class="t">${L.title.replace('　', ' ')}</div></div>`).join('');
+    $$('#free-levels .thumb').forEach((th, i) => { const c = Backdrop.still(LEVELS[i].scene, 0, 240, 135); c.style.cssText = 'width:100%;height:100%;display:block'; th.appendChild(c); });
     if (!FREE.opps.length) FREE.opps = rosterOf(FREE.levelIdx).slice(0, 4);
     renderFreeOpps();
     const seg = (key, opts) => `<div class="seg" data-fkey="${key}">${opts.map(([v, t]) => `<button data-v="${v}" class="${String(FREE[key]) === String(v) ? 'on' : ''}">${t}</button>`).join('')}</div>`;
@@ -318,10 +338,10 @@
   // ═════════════ 遊戲執行物件 ═════════════
   function newRun(o) {
     const G = {
-      mode: o.mode, name: o.name, look: o.look || 'hero_a', diff: o.diff || 'normal', slot: o.slot || 0,
+      mode: o.mode, name: o.name, look: o.look || 'hero_a', diff: o.diff || 'normal', slot: o.slot === undefined ? null : o.slot,
       levelIdx: o.levelIdx || 0, stageIdx: o.stageIdx || 0,
       stats: { hands: 0, handsWon: 0, biggestPot: 0, levelsCleared: 0, busts: 0 },
-      model: AI.newModel(), playtime: 0, tick: Date.now(), paused: false, snap: null,
+      model: AI.newModel(), playtime: 0, tick: Date.now(), paused: false, inStage: false,
     };
     App.run = G;
     return G;
@@ -329,7 +349,7 @@
 
   function levelIntro(G) {
     const L = LEVELS[G.levelIdx];
-    G.snap = null; saveRun(G);
+    G.inStage = false; saveRun(G);
     storyScreen({
       title: L.title, sub: L.sub, lines: L.story, scene: L.scene, stageIdx: 0,
       cast: L.stages.length === 1 ? L.stages[0].opponents : [], next: () => stageIntro(G),
@@ -365,7 +385,9 @@
   }
 
   // ═════════════ 開始一站 ═════════════
-  function startStage(G, snap) {
+  function startStage(G, from) {
+    from = from || {};
+    const snap = from.snap;
     const L = LEVELS[G.levelIdx];
     let oppIds, chips, blinds, every;
     if (G.mode === 'free') {
@@ -384,16 +406,23 @@
       const sp = snap && snap.players.find((p) => p.id === (i === 0 ? 'hero' : id));
       return { id: i === 0 ? 'hero' : id, name: i === 0 ? G.name : CHARS[id].name, isHuman: i === 0, chips: sp ? sp.chips : chips, out: sp ? sp.out : false };
     });
-    G.table = new Engine.Table({ players, sb: blinds[0][0], bb: blinds[0][1], dealer: snap ? snap.dealer : -1, handNo: snap ? snap.handNo : 0, log: (e) => logEvent(G, e) });
+    if (from.state) {
+      G.table = Engine.Table.restore(from.state, { log: (e) => logEvent(G, e) });
+      Object.assign(G, from.flags || {});
+    } else {
+      G.table = new Engine.Table({ players, sb: blinds[0][0], bb: blinds[0][1], dealer: snap ? snap.dealer : -1, handNo: snap ? snap.handNo : 0, log: (e) => logEvent(G, e) });
+      G.revealed = false;
+    }
     G.startChips = chips;
-    G.snap = G.table.snapshot();
+    G.inStage = true;
     G.paused = false;
     hideActions();
     buildTable(G);
     show('game');
     Audio.playMusic(L.music);
     G.stageStartedAt = Date.now();
-    runStage(G).catch((e) => { if (!(e instanceof Abort)) console.error(e); });
+    saveRun(G);
+    runStage(G, !!from.state).catch((e) => { if (!(e instanceof Abort)) console.error(e); });
   }
 
   function buildTable(G) {
@@ -417,18 +446,19 @@
       const el = document.createElement('div');
       el.className = 'seat seat-' + key;
       el.style.left = g.x + 'px'; el.style.top = g.y + 'px';
-      el.innerHTML = `<div class="av"></div><div class="hole"></div><div class="plate"><div class="nm"></div><div class="ch"></div><div class="timer"></div></div><div class="act-tag"></div><div class="hand-name"></div>`;
+      el.innerHTML = `<div class="av"></div><div class="hole"></div><div class="plate"><div class="nm"></div><div class="ch"></div><div class="rd" style="display:none"></div></div><div class="act-tag"></div><div class="hand-name"></div>`;
       if (key === 'hero') { $('.av', el).style.cssText = 'width:110px;height:165px;left:-55px;top:-152px'; }
       const stackEl = document.createElement('div'); stackEl.className = 'seat-stack'; stackEl.style.cssText = `position:absolute;left:${g.stackXY[0]}px;top:${g.stackXY[1]}px;transform:translate(-50%,-100%);z-index:20`;
       const betEl = document.createElement('div'); betEl.className = 'seat-bet'; betEl.style.cssText = `position:absolute;left:${g.betXY[0]}px;top:${g.betXY[1]}px;transform:translate(-50%,-50%);z-index:22;display:flex;flex-direction:column;align-items:center`;
       seats.appendChild(el); seats.appendChild(stackEl); seats.appendChild(betEl);
       const holeEl = $('.hole', el);
       if (key !== 'hero') holeEl.style.cssText = ['D', 'E'].includes(key) ? 'left:-178px;top:-46px' : 'left:80px;top:-46px';
-      return { key, g, el, av: $('.av', el), hole: holeEl, nm: $('.nm', el), ch: $('.ch', el), tag: $('.act-tag', el), hn: $('.hand-name', el), stackEl, betEl, expr: 'neutral', exprTimer: null };
+      return { key, g, el, av: $('.av', el), hole: holeEl, nm: $('.nm', el), ch: $('.ch', el), tag: $('.act-tag', el), hn: $('.hand-name', el), rd: $('.rd', el), stackEl, betEl, expr: 'neutral', exprTimer: null };
     });
     const db = document.createElement('div'); db.className = 'dealer-btn'; db.textContent = 'D'; db.style.display = 'none';
     seats.appendChild(db); G.dealerEl = db;
-    $$('.bubble', stage).forEach((b) => b.remove());
+    $$('.bubble, .next-box, #game .banner', stage).forEach((b) => b.remove());
+    $('#hand-chart').style.display = settings.mods.chart ? '' : 'none';
     G.seatEls.forEach((s, i) => { setExpr(G, i, 'neutral'); updateSeat(G, i); });
     $('#game .extras-layer').innerHTML = '';
     clearInterval(G.extraTimer);
@@ -454,6 +484,11 @@
   function updateSeat(G, i) {
     const p = G.table.players[i], s = G.seatEls[i];
     s.nm.textContent = p.name;
+    if (i > 0 && G.ctx[i]) {
+      const st = AI.STYLES[G.ctx[i].style];
+      s.rd.textContent = settings.mods.reader ? `${st ? st.name : ''}・功力${'★'.repeat(1 + Math.round(G.ctx[i].skill * 4))}` : '';
+      s.rd.style.display = settings.mods.reader ? '' : 'none';
+    }
     s.ch.textContent = p.out ? '出局' : Chips.fmt(p.chips);
     s.el.classList.toggle('folded', p.folded && !p.out);
     s.el.classList.toggle('out', p.out);
@@ -555,13 +590,20 @@
   $('#hud-log').addEventListener('click', () => { Audio.sfx('click'); $('#log').classList.toggle('show'); });
 
   // ═════════════ 主流程 ═════════════
-  async function runStage(G) {
+  async function runStage(G, resume) {
     const t = G.table;
     await sleep(500, G);
-    // 打招呼
-    const order = G.seatEls.map((_, i) => i).filter((i) => i > 0 && !t.players[i].out);
-    for (const i of order.slice(0, 3)) { charLine(G, i, 'greet'); setExpr(G, i, 'happy', 2200); await sleep(700, G); }
-    await sleep(600, G);
+    if (resume && (t.phase === 'betting' || t.phase === 'street_done')) {
+      toast('從存檔的那一刻接續！');
+      renderHandState(G);
+      await handLoop(G);
+      await afterHand(G);
+    } else if (!resume) {
+      // 打招呼
+      const order = G.seatEls.map((_, i) => i).filter((i) => i > 0 && !t.players[i].out);
+      for (const i of order.slice(0, 3)) { charLine(G, i, 'greet'); setExpr(G, i, 'happy', 2200); await sleep(700, G); }
+      await sleep(600, G);
+    }
     for (;;) {
       await gate(G);
       if (t.players[0].out) return gameOver(G);
@@ -572,17 +614,74 @@
         const [sb, bb] = G.blinds[idx];
         if (bb !== t.bb) { t.setBlinds(sb, bb); if (t.handNo > 0) { toast(`盲注提升！${Chips.fmt(sb)} / ${Chips.fmt(bb)}`); Audio.sfx('turn'); await sleep(900, G); } }
       }
-      G.snap = t.snapshot();
       await playHand(G);
-      G.snap = t.snapshot();
-      saveRun(G);
-      await sleep(400, G);
+      await afterHand(G);
     }
+  }
+
+  async function afterHand(G) {
+    const t = G.table;
+    saveRun(G);
+    const goesOn = !t.players[0].out && t.players.some((p, i) => i > 0 && !p.out);
+    if (goesOn) await nextHandPrompt(G);
+    $$('#game .banner').forEach((b) => b.remove());
+  }
+
+  // 每手結束：畫面停住，詢問「下一手」；可切換成 3 秒後自動繼續
+  function nextHandPrompt(G) {
+    return new Promise((res) => {
+      $$('.next-box').forEach((b) => b.remove());
+      const box = document.createElement('div');
+      box.className = 'next-box';
+      box.innerHTML = `<button class="btn pink" data-n>下一手 ▶ <span class="k">空白鍵</span></button>
+        <label class="auto-tg"><input type="checkbox" ${settings.autoNext ? 'checked' : ''}><span class="sw"></span>3 秒後自動下一手</label>
+        <div class="cd"><i></i></div>`;
+      $('#game .table-wrap').appendChild(box);
+      let timer = null, start = 0;
+      const done = () => { clearInterval(timer); box.remove(); G.nextResolve = null; res(); };
+      const arm = () => {
+        clearInterval(timer);
+        const cd = box.querySelector('.cd'), bar = box.querySelector('.cd i');
+        cd.style.visibility = settings.autoNext ? 'visible' : 'hidden'; bar.style.width = '0%';
+        if (!settings.autoNext) return;
+        start = Date.now();
+        timer = setInterval(() => {
+          if (G !== App.run) { clearInterval(timer); box.remove(); return; }
+          if (G.paused) { start = Date.now(); bar.style.width = '0%'; return; }
+          const u = (Date.now() - start) / 3000;
+          bar.style.width = Math.min(100, u * 100) + '%';
+          if (u >= 1) done();
+        }, 50);
+      };
+      box.querySelector('[data-n]').onclick = () => { Audio.sfx('click'); done(); };
+      box.querySelector('input').onchange = (e) => { settings.autoNext = e.target.checked; Storage.saveSettings(settings); Audio.sfx('click'); arm(); };
+      G.nextResolve = done;
+      arm();
+    });
+  }
+
+  // 讀檔接續：把牌桌畫面還原到存檔當下
+  const TAG_ZH = { fold: '棄牌', check: '過牌', call: '跟注', bet: '下注', raise: '加注', allin: '全下！' };
+  function renderHandState(G) {
+    const t = G.table;
+    clearTags(G);
+    $('#game .board').innerHTML = t.board.map((c) => cardHTML(c)).join('') + '<div class="slot-c"></div>'.repeat(5 - t.board.length);
+    G.handBoardShown = t.board.length;
+    const hero = t.players[0];
+    $('#game .hero-cards').innerHTML = hero.out ? '' : hero.hole.map((c) => cardHTML(c, { size: 'lg', cls: hero.folded ? 'dim' : '' })).join('');
+    t.players.forEach((p, i) => {
+      if (p.lastAction && !p.out) showTag(G, i, TAG_ZH[p.lastAction] || p.lastAction, p.lastAction);
+      if (i === 0) return;
+      G.seatEls[i].hole.innerHTML = p.out ? '' : p.hole.map((c, r) => cardHTML(G.revealed && !p.folded ? c : null, { size: 'sm', cls: p.folded ? 'dim' : '', style: `--r:${r ? 8 : -8}deg` })).join('');
+    });
+    updateHud(G); placeDealer(G); updateAllSeats(G); updatePot(G);
+    refreshExpressions(G);
   }
 
   async function playHand(G) {
     const t = G.table;
     clearTags(G);
+    $$('#game .banner').forEach((b) => b.remove());
     $('#game .board').innerHTML = '<div class="slot-c"></div>'.repeat(5);
     $('#game .hero-cards').innerHTML = '';
     G.seatEls.forEach((s) => (s.hole.innerHTML = ''));
@@ -606,6 +705,12 @@
       }
     }
     refreshExpressions(G);
+    saveRun(G);
+    await handLoop(G);
+  }
+
+  async function handLoop(G) {
+    const t = G.table;
     await showHint(G);
     while (t.phase !== 'hand_done') {
       await gate(G);
@@ -620,6 +725,7 @@
           act = AI.decide(t, t.players[i], { ...G.ctx[i], model: G.model });
         }
         applyAction(G, i, act);
+        saveRun(G);
         await sleep(i === 0 ? 250 : 350, G);
       } else if (t.phase === 'street_done') {
         G.seatEls.forEach((s) => s.el.classList.remove('acting'));
@@ -628,6 +734,7 @@
         const runout = t.inHand().length > 1 && t.canActCount() < 2;
         if (runout && !G.revealed) { G.revealed = true; revealHands(G); await sleep(900, G); }
         t.advanceStreet();
+        saveRun(G);
         if (t.phase !== 'hand_done' || t.result && !t.result.uncontested) await showBoard(G);
         updatePot(G);
         if (t.phase !== 'hand_done') {
@@ -735,26 +842,67 @@
   }
 
   // ═════════════ 提示 ═════════════
-  function hintsOn(G) { return settings.hints === 'on' || (settings.hints === 'auto' && (G.diff === 'baby' || G.diff === 'rookie')); }
+  // ═════════════ 輔助模組（Mods）═════════════
+  const MODS = [
+    { id: 'equity', name: '勝率顯示器', desc: '即時顯示目前牌型與勝率' },
+    { id: 'odds', name: '底池賠率計算', desc: '要跟多少、賠率多少' },
+    { id: 'advice', name: '行動建議', desc: '依勝率與賠率建議棄／跟／加' },
+    { id: 'chart', name: '牌型速查表', desc: '左側顯示牌型大小排行' },
+    { id: 'reader', name: '讀心術', desc: '名牌下顯示對手個性與功力' },
+  ];
+  function modsHTML() {
+    return `<div class="mods">${MODS.map((m) => `<button class="mod ${settings.mods[m.id] ? 'on' : ''}" data-mod="${m.id}" aria-pressed="${!!settings.mods[m.id]}"><span class="sw"></span><b>${m.name}</b><small>${m.desc}</small></button>`).join('')}</div>`;
+  }
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-mod]'); if (!b) return;
+    const id = b.dataset.mod;
+    settings.mods[id] = !settings.mods[id];
+    Storage.saveSettings(settings); Audio.sfx('click');
+    $$(`[data-mod="${id}"]`).forEach((x) => { x.classList.toggle('on', settings.mods[id]); x.setAttribute('aria-pressed', settings.mods[id]); });
+    applyMods();
+  });
+  function applyMods() {
+    const G = App.run;
+    $('#hand-chart').style.display = settings.mods.chart ? '' : 'none';
+    if (G && G.table && G.seatEls) { updateAllSeats(G); if (G.table.phase !== 'hand_done') showHint(G).then(() => { if (humanResolve) updateHintOdds(G, G.table.legalActions(G.table.players[0])); }); }
+  }
+  function openModsPanel(back) {
+    const G = App.run; if (G) G.paused = true;
+    overlay(`<h2 style="justify-content:center">🧩 輔助模組</h2><p class="muted" style="margin-top:-6px">選擇要常駐開啟的輔助工具（設定會記住）</p>${modsHTML()}
+      <div class="row" style="justify-content:center;margin-top:14px"><button class="btn" data-a="ok">完成</button></div>`, (p) => {
+      p.querySelector('[data-a=ok]').onclick = () => { if (back) back(); else { closeOverlay(); if (G) G.paused = false; } };
+    });
+  }
+  $('#hud-mods').addEventListener('click', () => { Audio.sfx('click'); if (App.screen === 'game') openModsPanel(); });
+
+  const anyHint = () => settings.mods.equity || settings.mods.odds || settings.mods.advice;
   async function showHint(G) {
     const box = $('#game .hint');
     const t = G.table, p = t.players[0];
-    if (!hintsOn(G) || p.folded || p.out) { box.style.display = 'none'; return; }
+    const made = p.hole.length ? (t.board.length ? Cards.handName(Cards.evaluate(p.hole.concat(t.board))) : (p.hole[0] >> 2) === (p.hole[1] >> 2) ? '口袋對子' : '起手牌') : '';
+    $$('#hand-chart li').forEach((li) => li.classList.toggle('now', !p.folded && t.board.length > 0 && li.dataset.n === made));
+    if (!anyHint() || p.folded || p.out || !p.hole.length) { box.style.display = 'none'; return; }
     const nOpp = Math.max(1, t.inHand().length - 1);
     const eq = Cards.equity(p.hole, t.board, nOpp, 900);
-    const made = t.board.length ? Cards.handName(Cards.evaluate(p.hole.concat(t.board))) : (p.hole[0] >> 2) === (p.hole[1] >> 2) ? '口袋對子' : '起手牌';
     G.heroEq = eq;
-    box.innerHTML = `目前：<span class="adv">${made}</span><br>勝率約 <b>${Math.round(eq * 100)}%</b>（對 ${nOpp} 人）<div class="pot-odds"></div>`;
+    box.innerHTML = (settings.mods.equity ? `目前：<span class="adv">${made}</span><br>勝率約 <b>${Math.round(eq * 100)}%</b>（對 ${nOpp} 人）` : '') + '<div class="pot-odds"></div>';
     box.style.display = '';
+    if (!settings.mods.equity) box.querySelector('.pot-odds').innerHTML = '<span class="muted2">輪到你時顯示</span>';
   }
   function updateHintOdds(G, L) {
     const box = $('#game .hint .pot-odds');
     if (!box || G.heroEq === undefined) return;
     const t = G.table;
-    if (L.toCall <= 0) { box.innerHTML = `<span class="adv">${G.heroEq * (t.inHand().length) > 1.3 ? '建議：下注取得價值' : '建議：免費看牌'}</span>`; return; }
-    const odds = L.toCall / (t.potTotal() + L.toCall);
-    const adv = G.heroEq > odds + 0.08 ? (G.heroEq > 0.6 ? '建議：加注' : '建議：跟注') : G.heroEq > odds - 0.03 ? '建議：勉強可跟' : '建議：棄牌';
-    box.innerHTML = `需跟 ${Chips.fmt(L.toCall)}，賠率 ${Math.round(odds * 100)}%<br><span class="adv">${adv}</span>`;
+    let h = '';
+    if (L.toCall <= 0) {
+      if (settings.mods.odds) h += '不用跟注，可免費過牌<br>';
+      if (settings.mods.advice) h += `<span class="adv">${G.heroEq * t.inHand().length > 1.3 ? '建議：下注取得價值' : '建議：免費看牌'}</span>`;
+    } else {
+      const odds = L.toCall / (t.potTotal() + L.toCall);
+      if (settings.mods.odds) h += `需跟 ${Chips.fmt(L.toCall)}，賠率 ${Math.round(odds * 100)}%<br>`;
+      if (settings.mods.advice) h += `<span class="adv">${G.heroEq > odds + 0.08 ? (G.heroEq > 0.6 ? '建議：加注' : '建議：跟注') : G.heroEq > odds - 0.03 ? '建議：勉強可跟' : '建議：棄牌'}</span>`;
+    }
+    box.innerHTML = h;
   }
 
   // ═════════════ 玩家回合 ═════════════
@@ -872,9 +1020,8 @@
         await sleep(1700, G);
       }
     }
-    if (t.players[0].out) { setExpr(G, 0, 'shock'); G.stats.busts++; }
-    $('#game .banner') && $('#game .banner').remove();
-    await sleep(500, G);
+    if (t.players[0].out) { setExpr(G, 0, 'shock'); G.stats.busts++; $$('#game .banner').forEach((b) => b.remove()); }
+    await sleep(300, G);
   }
 
   function toast(msg) {
@@ -910,6 +1057,7 @@
 
   function stageClear(G) {
     clearInterval(G.extraTimer);
+    if (G.mode === 'free') { G.inStage = false; saveRun(G); }
     Audio.sfx('fanfare'); confetti();
     setExpr(G, 0, 'happy');
     const t = G.table;
@@ -926,7 +1074,7 @@
     const lastStage = G.stageIdx >= L.stages.length - 1;
     const lastLevel = G.levelIdx >= LEVELS.length - 1;
     if (!lastStage) {
-      G.stageIdx++; G.snap = null; saveRun(G);
+      G.stageIdx++; G.inStage = false; saveRun(G);
       overlay(`<h2 class="result-title">✨ 過關！</h2><p style="font-size:20px;font-weight:700">${esc(L.stages[G.stageIdx - 1].title)} 完成！下一站：${esc(L.stages[G.stageIdx].title)}</p>
         <div class="stack-btns"><button class="btn pink" data-a="next">繼續旅程 ▶</button><button class="btn alt" data-a="title">存檔並回主選單</button></div>`, (p) => {
         p.querySelector('[data-a=next]').onclick = () => { closeOverlay(); stageIntro(G); };
@@ -936,14 +1084,14 @@
     }
     G.stats.levelsCleared++;
     if (lastLevel) {
-      G.cleared = true; G.snap = null; saveRun(G);
+      G.cleared = true; G.inStage = false; saveRun(G);
       overlay(`<h2 class="result-title">👑 你就是賭神！</h2><p style="font-size:20px;font-weight:700">十關全破！總共打了 ${G.stats.hands} 手，贏下 ${G.stats.handsWon} 手。<br>最大底池：${Chips.fmt(G.stats.biggestPot)}</p>
         <div class="stack-btns"><button class="btn pink" data-a="end">觀看結局 ▶</button></div>`, (p) => {
         p.querySelector('[data-a=end]').onclick = () => { closeOverlay(); storyScreen({ title: '終章　醒來', sub: '夢的盡頭', lines: Levels.EPILOGUE, scene: 'space', next: () => { App.run = null; buildTitle(); show('title'); }, btn: '回主選單' }); };
       });
       return;
     }
-    G.levelIdx++; G.stageIdx = 0; G.snap = null; saveRun(G);
+    G.levelIdx++; G.stageIdx = 0; G.inStage = false; saveRun(G);
     overlay(`<h2 class="result-title">🎉 ${esc(L.title.split('　')[0])} 完成！</h2><p style="font-size:20px;font-weight:700">「${esc(L.title.split('　')[1])}」的對手全部被你贏下桌！<br>下一關：${esc(LEVELS[G.levelIdx].title)}</p>
       <p class="muted">已自動存檔到紀錄 ${G.slot + 1}</p>
       <div class="stack-btns"><button class="btn pink" data-a="next">前往下一關 ▶</button><button class="btn alt" data-a="title">回主選單</button></div>`, (p) => {
@@ -958,13 +1106,13 @@
     const t = G.table;
     const winner = t.players.filter((p) => !p.out && p.seat > 0).sort((a, b) => b.chips - a.chips)[0];
     if (winner) { setExpr(G, winner.seat, 'happy'); charLine(G, winner.seat, 'win'); }
-    if (G.mode === 'story') { G.snap = null; saveRun(G); }
+    G.inStage = false; saveRun(G);
     overlay(`<h2 class="result-title">💸 籌碼輸光了</h2><p style="font-size:20px;font-weight:700">在這場夢裡，你被${winner ? esc(winner.name) : '對手'}贏下桌了……<br>但夢還沒醒，你可以再試一次。</p>
       <div class="stack-btns"><button class="btn pink" data-a="retry">重新挑戰 ▶</button><button class="btn alt" data-a="title">回主選單</button></div>`, (p) => {
       p.querySelector('[data-a=retry]').onclick = () => {
         closeOverlay();
         if (G.mode === 'free') { const N = newRun({ mode: 'free', name: '你', look: G.look, diff: G.diff, levelIdx: G.levelIdx }); N.free = G.free; startStage(N); }
-        else { App.run = G; G.snap = null; startStage(G); }
+        else { App.run = G; startStage(G); }
       };
       p.querySelector('[data-a=title]').onclick = () => { closeOverlay(); App.run = null; buildTitle(); show('title'); };
     });
@@ -984,17 +1132,18 @@
     const G = App.run;
     if (!G || App.screen !== 'game') return;
     G.paused = true;
-    const story = G.mode === 'story';
     overlay(`<h2 style="justify-content:center">⏸ 暫停</h2>
       <div class="stack-btns">
         <button class="btn pink" data-a="resume">繼續遊戲</button>
-        ${story ? '<button class="btn alt" data-a="save">💾 儲存紀錄</button>' : ''}
+        <button class="btn alt" data-a="save">💾 儲存紀錄（此時此刻）</button>
+        <button class="btn alt" data-a="mods">🧩 輔助模組</button>
         <button class="btn alt" data-a="settings">⚙️ 設定</button>
         <button class="btn alt" data-a="rules">📖 德州撲克規則</button>
         <button class="btn red" data-a="quit">離開到主選單</button>
-      </div>${story ? `<p class="muted">每打完一手會自動存到紀錄 ${G.slot + 1}；讀檔會回到該手開始時。</p>` : ''}`, (p) => {
+      </div><p class="muted">${G.slot !== null ? `每個動作都會自動存到紀錄 ${G.slot + 1}。` : '自由模式尚未指定存檔格，請手動儲存一次。'}讀檔會從存檔的那一刻繼續。</p>`, (p) => {
       p.querySelector('[data-a=resume]').onclick = () => { closeOverlay(); G.paused = false; };
-      if (story) p.querySelector('[data-a=save]').onclick = () => { closeOverlay(); openSlots('save', () => openPause()); };
+      p.querySelector('[data-a=save]').onclick = () => { closeOverlay(); openSlots('save', () => openPause()); };
+      p.querySelector('[data-a=mods]').onclick = () => openModsPanel(() => openPause());
       p.querySelector('[data-a=settings]').onclick = () => { closeOverlay(); buildSettings(() => { closeOver('settings'); openPause(); }); openOver('settings'); };
       p.querySelector('[data-a=rules]').onclick = () => showRules();
       p.querySelector('[data-a=quit]').onclick = () => { closeOverlay(); saveRun(G); clearInterval(G.extraTimer); App.run = null; hideActions(); buildTitle(); show('title'); };
@@ -1032,6 +1181,7 @@
     if (App.screen === 'story' && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); storyNext && storyNext(); return; }
     if (App.screen !== 'game') return;
     if (e.key === 'Escape') { if ($('#overlay').classList.contains('show') && App.run && App.run.paused && !App.overlayScreens.length) { closeOverlay(); App.run.paused = false; } else if (!$('#overlay').classList.contains('show')) openPause(); return; }
+    if (App.run && App.run.nextResolve && !App.run.paused && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); App.run.nextResolve(); return; }
     if (!humanResolve) return;
     const k = e.key.toLowerCase();
     if (k === 'f') doHuman('fold');
@@ -1041,6 +1191,14 @@
   });
 
   // ═════════════ 啟動 ═════════════
+  // 牌桌絨布紋理（程式產生的雜訊）
+  try {
+    const nc = document.createElement('canvas'); nc.width = nc.height = 128;
+    const nx = nc.getContext('2d'), d = nx.createImageData(128, 128);
+    for (let i = 0; i < d.data.length; i += 4) { const v = 110 + Math.random() * 40; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; }
+    nx.putImageData(d, 0, 0);
+    stage.style.setProperty('--noise', `url(${nc.toDataURL()})`);
+  } catch (e) { /* 無紋理也可 */ }
   applySettings();
   buildTitle();
   show('title');

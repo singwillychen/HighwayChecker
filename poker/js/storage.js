@@ -14,8 +14,8 @@
     audioQuality: 'high',   // low | mid | high
     master: 0.8, music: 0.5, sfx: 0.8,
     speed: 'normal',        // slow | normal | fast
-    hints: 'auto',          // auto（依難度）| on | off
-    autoMuck: false,
+    autoNext: false,        // 每手結束後 3 秒自動下一手
+    mods: { equity: false, odds: false, advice: false, chart: false, reader: false }, // 輔助模組
   };
 
   function read(key, fallback) {
@@ -25,7 +25,14 @@
     try { localStorage.setItem(key, JSON.stringify(val)); return true; } catch (e) { return false; }
   }
 
-  function loadSettings() { return { ...DEFAULT_SETTINGS, ...read(SET_KEY, {}) }; }
+  function loadSettings() {
+    const saved = read(SET_KEY, {});
+    const s = { ...DEFAULT_SETTINGS, ...saved, mods: { ...DEFAULT_SETTINGS.mods, ...(saved.mods || {}) } };
+    // 舊版「勝率提示：永遠顯示」轉成模組
+    if (saved.hints === 'on' && !saved.mods) Object.assign(s.mods, { equity: true, odds: true, advice: true });
+    delete s.hints;
+    return s;
+  }
   function saveSettings(s) { return write(SET_KEY, s); }
 
   function allSlots() {
@@ -42,5 +49,5 @@
   function deleteSlot(i) { const arr = allSlots(); arr[i] = null; return write(SAVE_KEY, arr); }
   function firstEmpty() { const a = allSlots(); const i = a.findIndex((x) => !x); return i < 0 ? 0 : i; }
 
-  HP.Storage = { SLOT_COUNT, DEFAULT_SETTINGS, loadSettings, saveSettings, allSlots, saveSlot, deleteSlot, firstEmpty };
+  HP.Storage = { SLOT_COUNT, DEFAULT_SETTINGS: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)), loadSettings, saveSettings, allSlots, saveSlot, deleteSlot, firstEmpty };
 })(typeof window !== 'undefined' ? window : globalThis);

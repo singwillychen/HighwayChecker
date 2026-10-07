@@ -8,7 +8,7 @@
 
   const schedule = (base) => [1, 1.5, 2, 3, 4, 6, 8, 10, 15, 20, 30, 40, 60, 80, 100].map((m) => {
     const bb = Math.round(base * m);
-    return [Math.round(bb / 2), bb];
+    return [Math.floor(bb / 2), bb];
   });
 
   const PROLOGUE = [
