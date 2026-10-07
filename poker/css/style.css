@@ -1,0 +1,335 @@
+/* 夢回德州：現代賭場 × 美式卡通（粗黑框、硬陰影、霓虹金） */
+:root {
+  --ink: #1a1a1a;
+  --gold: #ffd43b;
+  --gold2: #f59f00;
+  --neon: #ff4f9a;
+  --teal: #38d9a9;
+  --night: #140b2e;
+  --night2: #241552;
+  --panel: #fff8e1;
+  --felt: #2f7a4f;
+  --red: #e03131;
+  --font: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --display: "Bungee", "Arial Black", var(--font);
+  --anim: 1;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #07040f; overflow: hidden; font-family: var(--font); color: var(--ink); user-select: none; -webkit-user-select: none; }
+button { font-family: inherit; }
+
+#viewport { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+#stage { position: absolute; width: 1280px; height: 720px; left: 50%; top: 50%; transform-origin: 50% 50%; overflow: hidden; background: var(--night); }
+
+/* ── 畫質 ── */
+.q-low *, .q-low *::before, .q-low *::after { animation: none !important; transition-duration: 0s !important; }
+.q-low .avatar-svg, .q-low .card, .q-low .btn, .q-low .plate { filter: none !important; box-shadow: none !important; }
+.q-mid .twinkle, .q-mid .rain { animation: none !important; }
+
+/* ── 動畫 ── */
+.twinkle { animation: twinkle 2.4s ease-in-out infinite; }
+@keyframes twinkle { 50% { opacity: .25; } }
+.neon { animation: neon 3s ease-in-out infinite; }
+@keyframes neon { 0%, 100% { opacity: 1; } 47% { opacity: 1; } 50% { opacity: .5; } 53% { opacity: 1; } }
+.flicker { animation: flicker 5s infinite; }
+@keyframes flicker { 0%, 96%, 100% { opacity: 1; } 97% { opacity: .5; } }
+.rain { animation: rain .6s linear infinite; }
+@keyframes rain { to { transform: translate(-8px, 40px); } }
+.spin-dash { animation: dash 6s linear infinite; }
+@keyframes dash { to { stroke-dashoffset: -340; } }
+
+/* ── 共用 UI ── */
+.screen { position: absolute; inset: 0; display: none; }
+.screen.active { display: block; }
+.scene-bg { position: absolute; inset: 0; }
+.scene-bg svg { width: 100%; height: 100%; display: block; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border: 3px solid var(--ink); border-radius: 14px; padding: 10px 22px; min-height: 48px;
+  background: var(--gold); color: var(--ink); font-weight: 900; font-size: 20px; cursor: pointer;
+  box-shadow: 0 5px 0 var(--ink); transition: transform .08s, box-shadow .08s, filter .1s;
+}
+.btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.btn:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--ink); }
+.btn:disabled { filter: grayscale(1) brightness(.8); cursor: not-allowed; transform: none; }
+.btn.alt { background: #fff; }
+.btn.pink { background: var(--neon); color: #fff; }
+.btn.teal { background: var(--teal); }
+.btn.red { background: var(--red); color: #fff; }
+.btn.small { font-size: 15px; padding: 6px 12px; min-height: 36px; border-radius: 10px; box-shadow: 0 3px 0 var(--ink); }
+.btn:focus-visible, .choice:focus-visible, input:focus-visible, select:focus-visible { outline: 4px solid var(--teal); outline-offset: 2px; }
+
+.panel {
+  position: absolute; background: var(--panel); border: 4px solid var(--ink); border-radius: 22px;
+  box-shadow: 0 8px 0 var(--ink), 0 20px 50px rgba(0,0,0,.45); padding: 22px 28px;
+}
+.panel h2 { margin: 0 0 14px; font-size: 32px; font-weight: 900; display: flex; align-items: center; gap: 12px; }
+.panel h2 .tag { font-family: var(--display); font-size: 14px; background: var(--ink); color: var(--gold); padding: 3px 10px; border-radius: 99px; letter-spacing: .05em; }
+.row { display: flex; gap: 12px; align-items: center; }
+.label { font-weight: 900; font-size: 17px; min-width: 120px; }
+.muted { color: #6b5e3a; font-size: 14px; }
+input[type=text], select {
+  font: inherit; font-size: 18px; font-weight: 700; border: 3px solid var(--ink); border-radius: 10px; padding: 8px 12px; background: #fff; min-height: 44px;
+}
+input[type=range] { accent-color: var(--neon); width: 260px; height: 28px; }
+.seg { display: inline-flex; border: 3px solid var(--ink); border-radius: 12px; overflow: hidden; }
+.seg button { border: 0; border-right: 3px solid var(--ink); background: #fff; font-weight: 900; font-size: 16px; padding: 8px 14px; white-space: nowrap; cursor: pointer; min-height: 40px; }
+.seg button:last-child { border-right: 0; }
+.seg button.on { background: var(--gold); }
+
+/* ── 標題畫面 ── */
+#title .logo { position: absolute; left: 0; right: 0; top: 70px; text-align: center; }
+#title .logo .big {
+  font-family: var(--display); font-size: 92px; line-height: 1; color: var(--gold);
+  -webkit-text-stroke: 4px var(--ink); paint-order: stroke fill; text-shadow: 0 8px 0 var(--ink), 0 0 40px rgba(255,212,59,.5);
+  transform: rotate(-3deg); display: inline-block;
+}
+#title .logo .zh { font-size: 54px; font-weight: 900; color: #fff; -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; text-shadow: 0 6px 0 var(--neon); margin-top: 14px; letter-spacing: .08em; }
+#title .logo .sub { color: #e5dbff; font-size: 18px; margin-top: 10px; font-weight: 700; }
+#title .menu { position: absolute; left: 50%; top: 380px; transform: translateX(-50%); display: grid; gap: 14px; width: 340px; }
+#title .menu .btn { font-size: 24px; min-height: 58px; }
+#title .lineup { position: absolute; bottom: -30px; left: 0; right: 0; display: flex; justify-content: space-between; padding: 0 20px; pointer-events: none; }
+#title .lineup .av { width: 130px; height: 195px; animation: bob 3s ease-in-out infinite; }
+#title .lineup .av:nth-child(2n) { animation-delay: -1.5s; }
+@keyframes bob { 50% { transform: translateY(-10px); } }
+#title .ver { position: absolute; right: 14px; bottom: 8px; color: #9775fa; font-size: 12px; }
+
+/* ── 新遊戲 ── */
+#newgame .panel { left: 90px; top: 50px; width: 1100px; height: 620px; }
+.choices { display: flex; gap: 12px; flex-wrap: wrap; }
+.choice {
+  border: 3px solid var(--ink); border-radius: 16px; background: #fff; cursor: pointer; padding: 10px; text-align: center;
+  box-shadow: 0 4px 0 var(--ink); transition: transform .1s; font-weight: 900;
+}
+.choice:hover { transform: translateY(-2px); }
+.choice.on { background: var(--gold); transform: translateY(-3px); box-shadow: 0 7px 0 var(--ink); }
+.choice .av { width: 90px; height: 135px; margin: 0 auto; }
+.diff { width: 166px; min-height: 120px; text-align: left; }
+.diff b { display: block; font-size: 22px; }
+.diff span { font-weight: 500; font-size: 13px; color: #555; }
+.diff .pips { color: var(--red); letter-spacing: 2px; font-size: 14px; }
+
+/* ── 存讀檔 ── */
+#slots .panel { left: 40px; top: 24px; width: 1200px; height: 672px; }
+.slot-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; height: 520px; }
+.slot {
+  border: 3px solid var(--ink); border-radius: 14px; background: #fff; padding: 8px 10px; position: relative; cursor: pointer;
+  box-shadow: 0 3px 0 var(--ink); display: flex; flex-direction: column; gap: 2px; font-size: 13px; overflow: hidden;
+}
+.slot:hover { background: #fff3bf; }
+.slot.empty { background: repeating-linear-gradient(45deg, #f8f9fa, #f8f9fa 8px, #f1f3f5 8px, #f1f3f5 16px); color: #868e96; justify-content: center; align-items: center; font-weight: 900; font-size: 16px; }
+.slot .no { position: absolute; right: 8px; top: 4px; font-family: var(--display); font-size: 18px; color: #ced4da; }
+.slot .nm { font-weight: 900; font-size: 16px; }
+.slot .lv { font-weight: 900; color: #5f3dc4; }
+.slot .del { position: absolute; right: 6px; bottom: 6px; border: 2px solid var(--ink); background: #ffc9c9; border-radius: 8px; font-size: 12px; font-weight: 900; padding: 2px 8px; cursor: pointer; }
+.slot .face { position: absolute; right: 0; bottom: 34px; width: 48px; height: 72px; opacity: .9; }
+
+/* ── 設定 ── */
+#settings .panel { left: 240px; top: 40px; width: 800px; height: 640px; }
+#settings .rows { display: grid; gap: 14px; }
+
+/* ── 自由模式 ── */
+#free .panel { left: 30px; top: 18px; width: 1220px; height: 684px; padding: 18px 24px; }
+.lv-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+.lv-card { border: 3px solid var(--ink); border-radius: 12px; overflow: hidden; cursor: pointer; background: #000; position: relative; height: 92px; box-shadow: 0 3px 0 var(--ink); }
+.lv-card .thumb { position: absolute; inset: 0; }
+.lv-card .thumb svg { width: 100%; height: 100%; }
+.lv-card .t { position: absolute; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,.72); color: #fff; font-weight: 900; font-size: 13px; padding: 3px 6px; }
+.lv-card.on { outline: 5px solid var(--gold); outline-offset: -2px; }
+.opp-grid { display: flex; gap: 8px; flex-wrap: wrap; max-height: 196px; overflow-y: auto; padding: 4px; }
+.opp-pick { width: 86px; padding: 4px; border-radius: 12px; font-size: 12px; }
+.opp-pick .av { width: 64px; height: 96px; }
+.free-cols { display: grid; grid-template-columns: 1fr 380px; gap: 18px; margin-top: 12px; }
+
+/* ── 故事 ── */
+#story .panel { left: 140px; top: 70px; width: 1000px; height: 580px; display: flex; flex-direction: column; }
+#story h2 { font-size: 40px; }
+#story .subt { color: #7048e8; font-weight: 900; font-size: 20px; margin: -8px 0 12px; }
+#story .lines { flex: 1; font-size: 23px; line-height: 1.75; font-weight: 700; overflow: hidden; }
+#story .lines p { margin: 0 0 8px; opacity: 0; transform: translateY(8px); transition: all .45s; }
+#story .lines p.show { opacity: 1; transform: none; }
+#story .cast { display: flex; gap: 10px; justify-content: center; }
+#story .cast .c { text-align: center; width: 150px; font-size: 13px; }
+#story .cast .c .av { width: 96px; height: 144px; margin: 0 auto; }
+#story .cast .c b { display: block; font-size: 16px; }
+#story .foot { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+
+/* ── 牌桌 ── */
+#game .table-wrap { position: absolute; inset: 0; }
+.felt {
+  position: absolute; left: 165px; top: 190px; width: 950px; height: 400px; border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--felt) 100%, #fff 18%), var(--felt) 60%, color-mix(in srgb, var(--felt) 70%, #000 30%));
+  border: 22px solid #5a2d12; box-shadow: 0 0 0 4px var(--ink), inset 0 0 0 4px var(--ink), inset 0 0 0 10px #d4a017, inset 0 0 0 13px var(--ink), 0 24px 40px rgba(0,0,0,.55);
+}
+.felt::after {
+  content: attr(data-logo); position: absolute; left: 0; right: 0; top: 54%; text-align: center; font-family: var(--display);
+  font-size: 30px; color: rgba(255,255,255,.12); letter-spacing: .12em;
+}
+.felt.dark-ink::after { color: rgba(0,0,0,.14); }
+.felt .ring { position: absolute; inset: 40px 90px; border: 3px dashed rgba(255,255,255,.18); border-radius: 50%; }
+
+.board { position: absolute; left: 640px; top: 352px; transform: translate(-50%, -50%); display: flex; gap: 10px; }
+.board .slot-c { width: 70px; height: 98px; border-radius: 10px; border: 3px dashed rgba(255,255,255,.25); }
+.pot { position: absolute; left: 640px; top: 262px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; }
+.pot .amt { background: rgba(0,0,0,.65); color: var(--gold); font-weight: 900; border-radius: 99px; padding: 4px 16px; font-size: 20px; border: 2px solid var(--gold); white-space: nowrap; }
+.pot .sidepots { font-size: 12px; color: #fff; background: rgba(0,0,0,.5); border-radius: 8px; padding: 2px 8px; }
+.pot .chips-here { position: relative; width: 120px; height: 46px; }
+
+/* 撲克牌 */
+.card {
+  position: relative; width: 70px; height: 98px; border-radius: 10px; background: #fff; border: 3px solid var(--ink);
+  box-shadow: 0 4px 0 rgba(0,0,0,.35); font-weight: 900; color: var(--ink); overflow: hidden; flex: none;
+}
+.card.red { color: #e03131; }
+.card .rk { position: absolute; left: 6px; top: 2px; font-size: 24px; line-height: 1; font-family: var(--display); }
+.card .st { position: absolute; left: 7px; top: 26px; font-size: 18px; line-height: 1; }
+.card .big { position: absolute; right: 4px; bottom: -2px; font-size: 46px; line-height: 1; }
+.card.back { background: #c92a2a; }
+.card.back::before { content: ''; position: absolute; inset: 5px; border-radius: 6px; border: 2px solid #fff; background: repeating-linear-gradient(45deg, #e03131 0 6px, #a61e1e 6px 12px); }
+.card.back::after { content: '♠'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 30px; text-shadow: 0 0 0 #000, 2px 2px 0 var(--ink); }
+.card.sm { width: 46px; height: 64px; border-radius: 7px; border-width: 2.5px; }
+.card.sm .rk { font-size: 17px; left: 4px; }
+.card.sm .st { font-size: 13px; top: 19px; left: 5px; }
+.card.sm .big { font-size: 28px; }
+.card.lg { width: 92px; height: 128px; border-radius: 12px; }
+.card.lg .rk { font-size: 30px; }
+.card.lg .st { top: 33px; font-size: 24px; }
+.card.lg .big { font-size: 62px; }
+.card.dim { filter: brightness(.55) saturate(.6); }
+.card.win { box-shadow: 0 0 0 4px var(--gold), 0 0 22px var(--gold); transform: translateY(-8px); }
+.card.deal { animation: deal calc(.35s * var(--anim)) cubic-bezier(.2,.9,.3,1.2) both; }
+@keyframes deal { from { transform: translate(var(--fx, 0), var(--fy, -200px)) rotate(-30deg) scale(.6); opacity: 0; } }
+.card.flip { animation: flip calc(.4s * var(--anim)) ease both; }
+@keyframes flip { 0% { transform: rotateY(90deg); } 100% { transform: none; } }
+
+/* 座位 */
+.seat { position: absolute; width: 0; height: 0; }
+.seat .av { position: absolute; width: 124px; height: 186px; left: -62px; top: -170px; transition: transform .3s, filter .3s; }
+.seat .av .avatar-svg { width: 100%; height: 100%; overflow: visible; filter: drop-shadow(0 6px 0 rgba(0,0,0,.25)); }
+.seat.folded .av, .seat.out .av { filter: grayscale(.85) brightness(.75); }
+.seat.out .av { opacity: .35; }
+.seat.acting .av { transform: translateY(-6px) scale(1.04); }
+.plate {
+  position: absolute; left: -76px; top: 4px; width: 152px; background: #fff; border: 3px solid var(--ink); border-radius: 12px;
+  box-shadow: 0 4px 0 var(--ink); text-align: center; padding: 2px 4px 3px; z-index: 30;
+}
+.plate .nm { font-weight: 900; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plate .ch { font-family: var(--display); font-size: 15px; color: #2b8a3e; }
+.seat.acting .plate { background: var(--gold); animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { box-shadow: 0 4px 0 var(--ink), 0 0 0 6px rgba(255,212,59,.5); } }
+.timer { position: absolute; left: 0; bottom: 0; height: 4px; background: var(--neon); border-radius: 0 0 0 9px; }
+.seat .hole { position: absolute; display: flex; gap: 4px; z-index: 25; }
+.seat .hole .card { transform: rotate(var(--r, 0deg)); }
+.seat .act-tag {
+  position: absolute; left: 50%; top: 52px; transform: translateX(-50%); z-index: 31; background: var(--ink); color: #fff; font-weight: 900;
+  border-radius: 99px; padding: 2px 12px; font-size: 14px; white-space: nowrap; opacity: 0; transition: opacity .2s;
+}
+.seat .act-tag.show { opacity: 1; }
+.act-tag.fold { background: #868e96; } .act-tag.raise, .act-tag.bet { background: #e8590c; } .act-tag.allin { background: var(--red); }
+.act-tag.call { background: #1971c2; } .act-tag.check { background: #2b8a3e; } .act-tag.win { background: var(--gold); color: var(--ink); }
+.seat .hand-name { position: absolute; left: 50%; top: 82px; transform: translateX(-50%); background: #5f3dc4; color: #fff; font-weight: 900; padding: 2px 12px; border-radius: 8px; font-size: 14px; white-space: nowrap; z-index: 32; display: none; }
+.seat .hand-name.show { display: block; }
+.seat .stack { position: absolute; z-index: 20; }
+.seat .bet { position: absolute; z-index: 22; display: flex; flex-direction: column; align-items: center; transition: left calc(.4s * var(--anim)) ease-in, top calc(.4s * var(--anim)) ease-in, opacity .3s; }
+.seat .bet .v { background: rgba(0,0,0,.7); color: #fff; font-weight: 900; font-size: 13px; padding: 1px 8px; border-radius: 99px; margin-top: 2px; }
+.dealer-btn {
+  position: absolute; width: 34px; height: 34px; border-radius: 50%; background: #fff; border: 3px solid var(--ink); z-index: 26;
+  font-family: var(--display); font-size: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 0 var(--ink);
+  transition: left calc(.5s * var(--anim)), top calc(.5s * var(--anim));
+}
+
+/* 對話泡泡 */
+.bubble {
+  position: absolute; z-index: 60; max-width: 260px; background: #fff; border: 3px solid var(--ink); border-radius: 18px; padding: 8px 14px;
+  font-weight: 900; font-size: 16px; line-height: 1.35; box-shadow: 0 4px 0 var(--ink); pointer-events: none;
+  animation: pop calc(.25s * var(--anim)) cubic-bezier(.2,1.4,.4,1) both; width: max-content;
+}
+.bubble::after { content: ''; position: absolute; left: var(--tx, 30px); bottom: -14px; width: 18px; height: 18px; background: #fff; border-right: 3px solid var(--ink); border-bottom: 3px solid var(--ink); transform: rotate(45deg); }
+.bubble.down::after { bottom: auto; top: -12px; transform: rotate(225deg); }
+@keyframes pop { from { transform: scale(.3); opacity: 0; } }
+
+/* 籌碼堆 */
+.chip-stack { position: relative; display: flex; gap: 2px; align-items: flex-end; transform: scale(var(--s, 1)); transform-origin: bottom center; }
+.chip-col { position: relative; width: 36px; height: 36px; }
+.chip-side {
+  position: absolute; left: 0; width: 36px; height: 13px; border-radius: 50%; border: 1.5px solid var(--ink);
+  background: repeating-linear-gradient(90deg, var(--c) 0 6px, var(--e) 6px 10px, var(--c) 10px 15px); box-shadow: inset 0 -3px 0 rgba(0,0,0,.25);
+}
+.chip-top { position: absolute; left: 0; width: 36px; height: 36px; transform: scaleY(.42); transform-origin: bottom; display: block; margin-bottom: -15px; }
+.chip-top svg { width: 36px; height: 36px; display: block; }
+.fly-chips { position: absolute; z-index: 80; transition: left calc(.55s * var(--anim)) cubic-bezier(.5,0,.4,1), top calc(.55s * var(--anim)) cubic-bezier(.5,0,.4,1), opacity .3s; pointer-events: none; }
+
+/* 主角區 */
+.hero-cards { position: absolute; left: 640px; top: 560px; transform: translateX(-50%); display: flex; gap: 8px; z-index: 40; }
+.hero-cards .card { transition: transform .2s; }
+.hero-cards .card:hover { transform: translateY(-10px) rotate(-2deg); }
+.hint {
+  position: absolute; left: 752px; top: 562px; width: 176px; background: rgba(20,11,46,.88); color: #fff; border: 3px solid var(--teal); border-radius: 14px;
+  padding: 8px 12px; font-size: 13px; z-index: 41; line-height: 1.5;
+}
+.hint b { color: var(--teal); font-size: 20px; }
+.hint .adv { color: var(--gold); font-weight: 900; }
+
+/* 操作面板 */
+.actions {
+  position: absolute; right: 12px; bottom: 12px; width: 330px; background: rgba(20,11,46,.92); border: 4px solid var(--ink); border-radius: 18px;
+  padding: 10px; z-index: 70; box-shadow: 0 6px 0 var(--ink); display: none;
+}
+.actions.show { display: block; animation: pop .2s both; }
+.actions .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.actions .btn { font-size: 18px; padding: 6px 8px; min-height: 50px; }
+.actions .btn .k { font-size: 11px; opacity: .6; font-family: var(--display); }
+.raise-box { margin-bottom: 8px; color: #fff; }
+.raise-box .presets { display: flex; gap: 5px; margin-bottom: 6px; }
+.raise-box .presets button { flex: 1; border: 2px solid var(--ink); background: #e5dbff; font-weight: 900; border-radius: 8px; font-size: 13px; padding: 5px 0; cursor: pointer; min-height: 32px; }
+.raise-box .presets button:hover { background: var(--gold); }
+.raise-box .sl { display: flex; gap: 8px; align-items: center; }
+.raise-box input[type=range] { flex: 1; width: auto; }
+.raise-box .val { font-family: var(--display); color: var(--gold); min-width: 80px; text-align: right; font-size: 16px; }
+
+/* 頂欄 */
+.hud { position: absolute; left: 10px; top: 8px; right: 10px; display: flex; gap: 10px; align-items: center; z-index: 75; pointer-events: none; }
+.hud > * { pointer-events: auto; }
+.hud .pill { background: rgba(20,11,46,.85); color: #fff; border: 3px solid var(--ink); border-radius: 12px; padding: 4px 12px; font-weight: 900; font-size: 15px; }
+.hud .pill b { color: var(--gold); }
+.hud .grow { flex: 1; }
+.toast {
+  position: absolute; left: 50%; top: 150px; transform: translateX(-50%); z-index: 90; background: var(--gold); border: 4px solid var(--ink);
+  border-radius: 16px; padding: 10px 26px; font-size: 26px; font-weight: 900; box-shadow: 0 6px 0 var(--ink); animation: pop .3s both; white-space: nowrap; pointer-events: none;
+}
+.banner {
+  position: absolute; left: 50%; top: 430px; transform: translateX(-50%); z-index: 85; background: #fff; border: 4px solid var(--ink);
+  border-radius: 16px; padding: 8px 22px; font-size: 22px; font-weight: 900; box-shadow: 0 6px 0 var(--ink); text-align: center; white-space: nowrap; pointer-events: none;
+}
+.banner small { display: block; font-size: 14px; color: #5f3dc4; }
+
+/* 牌局紀錄 */
+.log {
+  position: absolute; left: 10px; top: 54px; width: 300px; max-height: 300px; overflow-y: auto; background: rgba(10,6,24,.88); color: #e5dbff;
+  border: 3px solid var(--ink); border-radius: 12px; padding: 8px 10px; font-size: 12.5px; line-height: 1.5; z-index: 76; display: none;
+}
+.log.show { display: block; }
+.log .h { color: var(--gold); font-weight: 900; margin-top: 4px; }
+
+/* 背景跑龍套 */
+.extra { position: absolute; z-index: 5; width: 90px; height: 135px; pointer-events: none; }
+.extra .avatar-svg { width: 100%; height: 100%; }
+.extra.fly { animation: flyAcross var(--dur, 12s) linear both; }
+.extra.fly.rtl { animation-name: flyAcrossR; }
+@keyframes flyAcross { from { left: -120px; } to { left: 1300px; } }
+@keyframes flyAcrossR { from { left: 1300px; transform: scaleX(-1); } to { left: -120px; transform: scaleX(-1); } }
+.extra .bubble { font-size: 13px; top: -36px; left: 30px; }
+.extra.rtl .bubble { transform: scaleX(-1); }
+.extra .bob { width: 100%; height: 100%; animation: bob 1.2s ease-in-out infinite; }
+
+/* 覆蓋視窗 */
+.overlay { position: absolute; inset: 0; background: rgba(8,4,20,.7); z-index: 100; display: none; }
+.overlay.show { display: block; }
+.overlay .panel { left: 50%; top: 50%; transform: translate(-50%, -50%); min-width: 420px; text-align: center; }
+.overlay .panel .stack-btns { display: grid; gap: 12px; margin-top: 10px; }
+
+.result-title { font-size: 54px !important; justify-content: center; }
+.confetti { position: absolute; width: 12px; height: 18px; top: -20px; z-index: 110; animation: fall linear forwards; }
+@keyframes fall { to { transform: translateY(780px) rotate(720deg); } }
+
+.kbd { font-family: var(--display); font-size: 11px; background: rgba(0,0,0,.15); border-radius: 4px; padding: 0 4px; }

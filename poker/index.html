@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>夢回德州：卡通賭神之路</title>
+<meta name="description" content="卡通風格德州撲克冒險：從幼稚園一路打到外太空，十關劇情、五種難度、自由模式。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Noto+Sans+TC:wght@500;700;900&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="viewport">
+  <div id="stage" class="q-high">
+
+    <!-- 標題 -->
+    <section id="title" class="screen">
+      <div class="scene-bg" data-scene="menu"></div>
+      <div class="logo">
+        <div class="big">DREAM POKER</div>
+        <div class="zh">夢回德州：卡通賭神之路</div>
+        <div class="sub">把夢裡每一桌的對手全部贏下桌，你才能醒來。</div>
+      </div>
+      <div class="menu">
+        <button class="btn" data-go="newgame">🃏 開新遊戲</button>
+        <button class="btn alt" data-go="load">📂 讀取紀錄</button>
+        <button class="btn teal" data-go="free">🎲 自由模式</button>
+        <button class="btn alt" data-go="settings">⚙️ 設定</button>
+      </div>
+      <div class="lineup"></div>
+      <div class="ver">v0.1 網頁版 · 鍵盤：F 棄牌 / C 過牌跟注 / R 加注 / A 全下 / Esc 選單</div>
+    </section>
+
+    <!-- 開新遊戲 -->
+    <section id="newgame" class="screen">
+      <div class="scene-bg" data-scene="menu"></div>
+      <div class="panel">
+        <h2>開新遊戲 <span class="tag">NEW GAME</span></h2>
+        <div class="row" style="margin-bottom:14px">
+          <span class="label">你的名字</span>
+          <input type="text" id="ng-name" maxlength="10" value="阿賭" aria-label="你的名字">
+          <span class="label" style="margin-left:24px;min-width:auto">存檔位置</span>
+          <select id="ng-slot" aria-label="存檔位置"></select>
+        </div>
+        <div class="row" style="align-items:flex-start;margin-bottom:14px">
+          <span class="label" style="padding-top:10px">你的模樣</span>
+          <div class="choices" id="ng-look"></div>
+        </div>
+        <div class="row" style="align-items:flex-start">
+          <span class="label" style="padding-top:10px">整體難度</span>
+          <div class="choices" id="ng-diff"></div>
+        </div>
+        <div class="row" style="position:absolute;right:28px;bottom:24px">
+          <button class="btn alt" data-go="title">返回</button>
+          <button class="btn pink" id="ng-start">開始做夢 ▶</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 存檔 / 讀檔 -->
+    <section id="slots" class="screen">
+      <div class="scene-bg" data-scene="menu"></div>
+      <div class="panel">
+        <h2><span id="slots-title">讀取紀錄</span> <span class="tag" id="slots-tag">LOAD</span></h2>
+        <div class="slot-grid" id="slot-grid"></div>
+        <div class="row" style="justify-content:flex-end;margin-top:12px">
+          <span class="muted" style="margin-right:auto">共 20 個紀錄格。存檔保存在本機瀏覽器中；遊戲中每打完一手會自動存檔。</span>
+          <button class="btn alt" id="slots-back">返回</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 設定 -->
+    <section id="settings" class="screen">
+      <div class="scene-bg" data-scene="menu"></div>
+      <div class="panel">
+        <h2>設定 <span class="tag">SETTINGS</span></h2>
+        <div class="rows" id="settings-rows"></div>
+        <div class="row" style="position:absolute;right:28px;bottom:24px">
+          <button class="btn alt" id="settings-reset">恢復預設</button>
+          <button class="btn" id="settings-back">完成</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 自由模式 -->
+    <section id="free" class="screen">
+      <div class="scene-bg" data-scene="menu"></div>
+      <div class="panel">
+        <h2>自由模式 <span class="tag">FREE PLAY</span> <span class="muted" style="font-size:14px;font-weight:700">選關卡場景與對手，自訂規則自由遊玩</span></h2>
+        <div class="lv-grid" id="free-levels"></div>
+        <div class="free-cols">
+          <div>
+            <div class="row" style="justify-content:space-between;margin:4px 0 6px">
+              <span class="label">選擇對手（1～5 位）</span>
+              <label class="muted"><input type="checkbox" id="free-all"> 顯示全部關卡的角色</label>
+            </div>
+            <div class="opp-grid" id="free-opps"></div>
+          </div>
+          <div class="rows" style="display:grid;gap:10px;align-content:start" id="free-opts"></div>
+        </div>
+        <div class="row" style="position:absolute;right:24px;bottom:18px">
+          <button class="btn alt" data-go="title">返回</button>
+          <button class="btn pink" id="free-start">開打 ▶</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 故事 -->
+    <section id="story" class="screen">
+      <div class="scene-bg"></div>
+      <div class="panel">
+        <h2 id="story-title"></h2>
+        <div class="subt" id="story-sub"></div>
+        <div class="lines" id="story-lines"></div>
+        <div class="cast" id="story-cast"></div>
+        <div class="foot">
+          <span class="muted">點擊或按空白鍵繼續</span>
+          <button class="btn pink" id="story-next">繼續 ▶</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 牌桌 -->
+    <section id="game" class="screen">
+      <div class="scene-bg"></div>
+      <div class="extras-layer"></div>
+      <div class="table-wrap">
+        <div class="felt"><div class="ring"></div></div>
+        <div class="pot"><div class="chips-here"></div><div><div class="amt">底池 0</div><div class="sidepots"></div></div></div>
+        <div class="board"></div>
+        <div class="seats"></div>
+        <div class="hero-cards"></div>
+        <div class="hint" style="display:none"></div>
+      </div>
+      <div class="hud">
+        <div class="pill" id="hud-level"></div>
+        <div class="pill" id="hud-blinds"></div>
+        <div class="pill" id="hud-hand"></div>
+        <div class="grow"></div>
+        <button class="btn small alt" id="hud-chat" title="說句話">💬</button>
+        <button class="btn small alt" id="hud-log" title="牌局紀錄">📜 紀錄</button>
+        <button class="btn small" id="hud-menu" title="選單 (Esc)">☰ 選單</button>
+      </div>
+      <div class="log" id="log"></div>
+      <div class="actions" id="actions">
+        <div class="raise-box">
+          <div class="presets">
+            <button data-p="min">最小</button><button data-p="half">½池</button><button data-p="3q">¾池</button><button data-p="pot">底池</button><button data-p="2x">2×池</button>
+          </div>
+          <div class="sl"><input type="range" id="raise-range" aria-label="加注金額"><span class="val" id="raise-val"></span></div>
+        </div>
+        <div class="btns">
+          <button class="btn alt" id="a-fold">棄牌 <span class="k">F</span></button>
+          <button class="btn teal" id="a-call">過牌 <span class="k">C</span></button>
+          <button class="btn" id="a-raise">加注 <span class="k">R</span></button>
+          <button class="btn red" id="a-allin">全下 <span class="k">A</span></button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 暫停選單 / 結果 -->
+    <div class="overlay" id="overlay"><div class="panel" id="overlay-panel"></div></div>
+  </div>
+</div>
+
+<script src="js/cards.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/characters.js"></script>
+<script src="js/levels.js"></script>
+<script src="js/dialogue.js"></script>
+<script src="js/avatar.js"></script>
+<script src="js/scenes.js"></script>
+<script src="js/chips.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
