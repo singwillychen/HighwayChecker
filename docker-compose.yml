@@ -1,0 +1,9 @@
+services:
+  highway:
+    build: .
+    container_name: highway-checker
+    restart: unless-stopped
+    ports:
+      - "8080:8080"      # 若 NAS 的 8080 已被占用，改左邊，例如 "8088:8080"
+    env_file:
+      - .env             # 放 TDX 金鑰，不會被打包進映像檔，也不要上傳到 GitHub

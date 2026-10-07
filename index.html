@@ -154,7 +154,7 @@ details.hw>summary .grow{flex:1;min-width:0;font-size:12.5px;color:var(--dim)}
       <p>輸入起訖點，看兩地之間每條公路現在的路況</p>
     </div>
   </header>
-  <p class="notice">目前為示範資料：依查詢當下的時間與情境估算，不是即時路況；交流道里程與接駁距離為概估值。換成真實資料的方式寫在頁面最下方。</p>
+  <p class="notice" id="notice">目前為示範資料：依查詢當下的時間與情境估算，不是即時路況；交流道里程與接駁距離為概估值。連上 TDX 後，「現在時間」情境會改用即時時速。</p>
 
   <section class="card" aria-label="查詢">
     <form id="f" autocomplete="off">
@@ -325,7 +325,8 @@ const short=n=>n.name, full=n=>n.kind==='ic'?n.label:n.kind==='hub'?n.city:n.nam
 function hashSeed(str){let h=2166136261;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
 function rng(seed){return()=>{seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 const g=(h,mu,sd)=>Math.exp(-((h-mu)**2)/(2*sd*sd));
-function scenario(key){
+function scenario(key){const s=scenario0(key);s.key=key;return s}
+function scenario0(key){
   const d=new Date();
   if(key==='am')return{h:8,dow:2,label:'平日早上 8:00 尖峰',d};
   if(key==='pm')return{h:18,dow:2,label:'平日傍晚 18:00 尖峰',d};
@@ -353,10 +354,50 @@ function snapshot(e,north,sc){
   const ratio=speed/e.free;
   return{speed,ratio,lv:ratio>.75?'ok':ratio>.45?'mid':'bad',load,flow:Math.round(60+load*190+rng(hashSeed(e.id+bucket))()*20),min:e.km/speed*60,free:e.km/e.free*60};
 }
-/* 資料層：之後換成 TDX 即時路況時，只要改這個函式。回傳一個 (邊, 方向) → 路況 的查詢函式 */
+/* 資料層：優先向自己的後端 /api/traffic 要 TDX 即時路況（只在「現在時間」情境使用），
+   後端不存在或沒設定金鑰時，自動退回示範估算 */
+let LIVE=null,liveAt=0,cov={live:0,total:0};
+async function loadLive(){
+  if(Date.now()-liveAt<60000)return;liveAt=Date.now();
+  try{
+    const r=await fetch('api/traffic',{cache:'no-store'});
+    const j=r.ok?await r.json():null;
+    LIVE=j&&j.ok&&j.sections&&j.sections.length?j:null;
+  }catch(e){LIVE=null}
+}
+const stripN=s=>norm(s).replace(/交流道|系統|端|匝道|\(.*?\)/g,'');
+function liveFor(e,north){
+  if(!LIVE||e.kind!=='hw')return null;
+  const A=stripN(NODES.get(e.a).name),B=stripN(NODES.get(e.b).name),dig=(e.hw.match(/\d+/)||[''])[0],isNat=e.hw.startsWith('國道');
+  const hit=[];
+  for(const s of LIVE.sections){
+    const road=String(s.road||'');
+    if(road&&(((road.match(/\d+/)||[''])[0]!==dig)||(road.includes('國道')!==isNat&&/國道|台/.test(road))))continue;
+    const txt=stripN((s.from||'')+(s.to||'')+(s.name||''));
+    if(!(txt.includes(A)&&txt.includes(B)))continue;
+    const d=String(s.dir||'');
+    const dn=/^(n|北)/i.test(d)||/北上/.test(d)?true:/^(s|南)/i.test(d)||/南下/.test(d)?false:null;
+    if(dn===null||dn===north)hit.push(s.speed);
+  }
+  return hit.length?hit.reduce((a,b)=>a+b,0)/hit.length:null;
+}
 async function fetchSnapshots(edges,sc){
-  const m=new Map();
-  edges.forEach(e=>[true,false].forEach(n=>m.set(e.id+n,snapshot(e,n,sc))));
+  if(sc.key==='now')await loadLive();
+  const m=new Map();let live=0,total=0;
+  edges.forEach(e=>[true,false].forEach(n=>{
+    let s=snapshot(e,n,sc);
+    if(sc.key==='now'&&e.kind==='hw'){
+      total++;
+      const sp=liveFor(e,n);
+      if(sp){
+        live++;
+        const speed=Math.max(5,Math.round(sp)),ratio=speed/e.free;
+        s={...s,speed,ratio,lv:lvOf(ratio),min:e.km/speed*60,src:'live'};
+      }
+    }
+    m.set(e.id+n,s);
+  }));
+  cov={live,total,mode:sc.key==='now'&&LIVE?'live':'demo'};
   return(e,north)=>m.get(e.id+north);
 }
 const LV={ok:'順暢',mid:'車多',bad:'壅塞'};
@@ -435,7 +476,7 @@ async function plan(src,dst,sc){
   const byHw={};
   used.forEach(e=>{if(e.kind==='hw')(byHw[e.hw]=byHw[e.hw]||[]).push(e)});
   Object.values(byHw).forEach(a=>a.sort((x,y)=>NODES.get(x.a).km-NODES.get(y.a).km));
-  return{list,byHw,snap,base,count:paths.length};
+  return{list,byHw,snap,base,count:paths.length,cov};
 }
 
 /* ===== 輸入解析（快速選擇＋細項） ===== */
@@ -551,6 +592,10 @@ function hwListHTML(res){
     return`<details class="hw"><summary>${badge(hw)}<span class="pill ${lvOf(worst.ratio)}">最壅塞：${LV[lvOf(worst.ratio)]}</span><span class="grow">${edges.length} 個區間・平均約 ${Math.round(kmSum/minSum*60)} km/h</span></summary><div class="hwbody">${rows}</div></details>`;
   }).join('');
 }
+function srcText(c){
+  if(c&&c.mode==='live')return c.live?`資料來源：TDX 即時（${c.live}/${c.total} 個區間有即時時速，其餘為示範估算）`:'資料來源：TDX 已連線，但這條路線沒有對應到區間，使用示範估算';
+  return '資料來源：示範估算（非即時）';
+}
 let runId=0;
 async function run(){
   const id=++runId;
@@ -576,7 +621,7 @@ async function run(){
      <h2>${disp(a)} → ${disp(b)}${detail}</h2>
      <div class="big"><span class="t">${fmtMin(best.min)}</span><span class="pill ${best.lv}">${LV[best.lv]}</span></div>
      <div>建議走 <b>${routeName(best)}</b>，約 ${best.km} 公里，順暢時需 ${fmtMin(best.free)}。</div>
-     <div class="meta"><span>情境：${sc.label}</span><span>查詢時間 ${stamp}</span><span>示範資料</span></div>
+     <div class="meta"><span>情境：${sc.label}</span><span>查詢時間 ${stamp}</span><span>${srcText(res.cov)}</span></div>
    </section>
    <h3>可走路線 <small>依預估時間排序</small></h3>
    <div class="routes">${res.list.map(routeHTML).join('')}</div>
@@ -603,7 +648,7 @@ document.addEventListener('click',e=>{
   fineEl[c.dataset.side].value=c.dataset.v;run();
 });
 
-$('#foot').innerHTML='資料說明：本頁的時速與壅塞等級由「查詢當下的時間＋情境＋路段特性」估算，攝影機畫面為 CSS 示意動畫；交流道里程、系統轉乘點與地標接駁距離都是概估值。接上真實資料時，請改寫程式裡的 <code>fetchSnapshots()</code>，改由交通部 TDX 運輸資料流通服務（公路局、高公局的路段即時路況與 CCTV）取得各路段時速與影像網址，其餘畫面不用動。注意：直接從瀏覽器呼叫 TDX 需要金鑰，建議透過自己的後端或代理轉發。';
+$('#foot').innerHTML='資料說明：本頁的時速與壅塞等級由「查詢當下的時間＋情境＋路段特性」估算，攝影機畫面為 CSS 示意動畫；交流道里程、系統轉乘點與地標接駁距離都是概估值。在 NAS 上以 Docker 啟動後端並設定 TDX 金鑰，「現在時間」情境就會改用交通部 TDX 的高速公路即時時速（金鑰只放在後端，不會出現在網頁裡）。';
 ['from','to'].forEach(updateMsg);
 run();
 })();
